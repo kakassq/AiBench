@@ -5,7 +5,7 @@
 #   file path:  data/plugins/<owner>__<repo>.yml
 #   file name:  with the monorepo subpackage suffix because the installable
 #               package is packages/aibench, not the repo root:
-#                 <owner>__AiBench--packages-aibench.yml
+#                 kakassq__AiBench--packages-aibench.yml
 #
 # The catalog README is generated from these files by a script — never edit the
 # README by hand.
@@ -24,10 +24,10 @@
 # dsh.bundle is mandatory for installability. packages/aibench/package.json
 # declares both.
 
-url: https://github.com/<OWNER>/AiBench
-name: <OWNER>/AiBench#packages/aibench
+url: https://github.com/kakassq/AiBench
+name: kakassq/AiBench#packages/aibench
 category: ui
 description:
   en: Local-first parametric video studio. Renders motion graphics with code — no AI image or video generation, reproducible frame for frame.
   zh: 本地渲染的参数化视频创作台。画面全由代码逐帧绘制，不生图不生视频，同参数可复现，零渲染成本。
-icon: https://raw.githubusercontent.com/<OWNER>/AiBench/main/assets/icon-180.png
+icon: https://raw.githubusercontent.com/kakassq/AiBench/main/assets/icon-180.png

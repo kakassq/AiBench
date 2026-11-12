@@ -91,7 +91,7 @@ D:\AI\Vibe\AiBench\
 │  │   ├─ locale\{zh.json,en.json}
 │  │   ├─ icon.svg
 │  │   └─ README.md
-│  ├─ aibench-render\              # Remotion 渲染工程（private）
+│  ├─ render\                      # Remotion 渲染工程（随插件发布）
 │  │   ├─ src\{index.ts,Root.tsx,BnClip.tsx,storyboard.ts,theme.ts}
 │  │   ├─ compositions\            # 每个风格一个组件
 │  │   ├─ public\audio\{bgm,sfx}
@@ -302,7 +302,7 @@ async function runRole(role, { cwd, prompt }) {
 - **验收**：`plugin_manager install_bundle` → DSH 侧栏出现 AiBench 图标 → 点开看到面板 → 杀掉重装不报 duplicate route
 
 ### S1 · 创作台闭环（2–3 天）★核心
-- [ ] `packages/aibench-render`：装 4.0.542 依赖（复用 vibemotion-video 的 pnpm store），写 `Root.tsx` + `AiClip.tsx` + 2 个 composition
+- [ ] `packages/aibench/render`：装 4.0.542 依赖（复用 vibemotion-video 的 pnpm store），写 `Root.tsx` + `AiClip.tsx` + 2 个 composition
 - [ ] 模板库：3 个手写模板（瑞士排版 / 蓝图 / CRT 终端）+ 参数表单
 - [ ] Projects CRUD + `planStoryboard()` 分镜 + 分镜表 UI
 - [ ] 单帧预览（still → PNG 回填）

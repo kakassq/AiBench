@@ -100,14 +100,14 @@ pnpm add dsh-aibench
 
 装上后 DSH 侧栏出现「AiBench 创作台」图标，与「对话」并列。
 
-`dsh-aibench` 依赖 `aibench-render`（渲染引擎）。它俩必须同版本，因为模板参数 → 分镜 → 帧的契约是紧耦合的。
+渲染引擎在插件包内部（`packages/aibench/render/`），跟着插件一起发布。单一包，没有跨包版本耦合。
 
 ### 发布前会跑什么
 
 `pnpm check` 跑九道闸门，其中两道专门守着「装得上但跑不起来」这类问题：
 
 - `check-storyboard-build.mjs` —— 预编译的 `dist/storyboard.mjs` 与 `src/storyboard.ts` 必须产出逐字节相同的分镜。Node 拒绝为 `node_modules` 下的文件剥离类型，所以发布包里带的是预编译产物；忘了重新编译会直接失败。
-- `check-installed-layout.mjs` —— 把两个 tgz 解到 `node_modules/<name>/` 下（模拟 npm 安装后的真实布局），验证插件能 import、渲染引擎路径能解析、分镜规划器能跑。源码 checkout 里用符号链接，跑通不代表装得上。
+- `check-installed-layout.mjs` —— 把 tgz 解到 `node_modules/dsh-aibench/` 下（模拟 npm 安装后的真实布局），验证插件能 import、渲染引擎能解析到包内的 `render/`、分镜规划器能跑。源码 checkout 里用符号链接，跑通不代表装得上。
 
 完整发布步骤见 [docs/PUBLISHING.md](docs/PUBLISHING.md)。
 
@@ -116,8 +116,8 @@ pnpm add dsh-aibench
 ```
 packages/aibench         可分发的 DSH 插件包（Host + Client 双半部）
   agents/                三个内置 Agent 包（manifest + SKILL.md + 模板），首次启动自动播种
-packages/aibench-render  Remotion 渲染工程（作为 aibench-render 包发布，被插件依赖）
-  dist/storyboard.mjs    预编译的分镜规划器 —— Host 从 npm 安装后 import 的是它
+  render/                Remotion 渲染工程，随插件一起发布
+    dist/storyboard.mjs  预编译的分镜规划器 —— Host 从 npm 安装后 import 的是它
 assets/                  icon-180.png / icon-512.png（从 icon.svg 栅格化而来）
 docs/00-plan.md          产品定位、与 BN面板 的差异、子模型路由、阶段计划
 docs/PUBLISHING.md       双通道发布手册（npm / GitHub / 插件市场，含实测门槛）
@@ -137,15 +137,15 @@ scripts/publish-github.mjs   Git Data API 推仓库（无需 git）
 
 ```bash
 pnpm install
-pnpm --filter aibench-render studio   # 打开 Remotion Studio 调画面
+pnpm --dir packages/aibench/render studio   # 打开 Remotion Studio 调画面
 node scripts/probe.mjs                # 接口回归
 pnpm check                            # 九道闸门全跑
 ```
 
-改了 `packages/aibench-render/src/storyboard.ts` 之后**必须重新编译**，否则 Host 读到的还是旧规划器：
+改了 `packages/aibench/render/src/storyboard.ts` 之后**必须重新编译**，否则 Host 读到的还是旧规划器：
 
 ```bash
-node packages/aibench-render/scripts/build-storyboard.mjs
+node packages/aibench/render/scripts/build-storyboard.mjs
 ```
 
 改完 `packages/aibench/client.js` 或 `index.js` 后需要重载插件才生效：

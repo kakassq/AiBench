@@ -75,7 +75,7 @@ description: 数据故事的流水线：抛数 → 拆结构 → 找异常 → �
 
 合并顺序是有意的：**描述符补齐，defaults 拍板**。模板里写了 `look: 'terminal-crt'` 却没写 `style: 2`，以前会静默退回 `normalizeParams` 的默认风格；现在描述符会把它补上。反过来，`defaults` 是人工校准过的，两者冲突时它赢。
 
-`LOOK_IDS` / `PALETTE_NAMES` 必须与 `aibench-render/src/storyboard.ts` 的表保持同序 —— `scripts/check-templates.mjs` 会 import 两边做全等断言，顺序漂移直接失败。
+`LOOK_IDS` / `PALETTE_NAMES` 必须与 `aibench/render/src/storyboard.ts` 的表保持同序 —— `scripts/check-templates.mjs` 会 import 两边做全等断言，顺序漂移直接失败。
 
 ## 字幕
 
@@ -198,7 +198,7 @@ settings.json    面板设置
 
 ## 渲染引擎
 
-`/panel/info` 会报告 `render.available`。它检查 `../aibench-render/node_modules/@remotion/cli/remotion-cli.js` 是否存在：
+`/panel/info` 会报告 `render.available`。它检查 `render/node_modules/@remotion/cli/remotion-cli.js` 是否存在：
 
 - **true** — 本机已装 Remotion，可以预览帧、导出 MP4
 - **false** — 面板照常可用（浏览模板、管项目、改参数），但预览与导出会提示先装依赖
