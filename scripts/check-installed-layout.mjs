@@ -31,20 +31,22 @@ assert('exports BASE_PATH', mod.BASE_PATH === '/aibench-api', `got ${mod.BASE_PA
 // The render engine must be resolvable from the installed location, and the
 // prebuilt planner must import successfully there — this is the exact call that
 // throws ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING if the build is missing.
+// The engine is in-tree (`<plugin>/render`), so it must resolve *inside* the
+// installed package rather than to a sibling npm package.
 const render = mod.getRenderStatus()
-assert('render engine resolved', render.projectDir.includes('aibench-render'), render.projectDir)
-assert('render engine dir is under node_modules', /node_modules[\\/]aibench-render$/.test(render.projectDir), render.projectDir)
+assert('render engine resolved', render.projectDir.includes('render'), render.projectDir)
+assert('render engine is in-tree', render.projectDir === join(INSTALLED, 'render'), render.projectDir)
 assert('built storyboard module present', existsSync(join(render.projectDir, 'dist', 'storyboard.mjs')))
 
 // The Remotion CLI only exists after the user runs their package manager, so a
 // tarball-only scratch layout legitimately has no dependencies. Report that
 // state explicitly instead of calling it a failure — but never pass it silently.
-const depsInstalled = existsSync(join(render.projectDir, 'node_modules'))
+const depsInstalled = existsSync(join(INSTALLED, 'node_modules')) || existsSync(join(render.projectDir, 'node_modules'))
 if (depsInstalled) {
   assert('render CLI resolvable', existsSync(render.cli), render.cli)
   assert('render engine reports available', render.available === true, `available=${render.available}`)
 } else {
-  console.log('SKIP  render CLI: aibench-render dependencies not installed in this layout')
+  console.log('SKIP  render CLI: Remotion dependencies not installed in this layout')
 }
 
 const storyboard = await mod.planStoryboardForTest('安装后测试', { durationSec: 10, beatBpm: 120, subtitle: 'bilingual' })

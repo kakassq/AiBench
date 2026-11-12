@@ -1,6 +1,6 @@
 // Timeline invariant gate: every generated storyboard must tile totalFrames
 // exactly, with no overlaps, no gaps, and no shot shorter than 12 frames.
-const { planStoryboard } = await import('../packages/aibench-render/src/storyboard.ts')
+const { planStoryboard } = await import('../packages/aibench/render/src/storyboard.ts')
 
 const BRIEFS = [
   '贝叶斯公式并不神秘，它只是把先验加新证据等于后验',

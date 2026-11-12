@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url'
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = join(here, '..')
 const host = await import(pathToFileURL(join(repo, 'packages', 'aibench', 'index.js')).href)
-const render = await import(pathToFileURL(join(repo, 'packages', 'aibench-render', 'src', 'storyboard.ts')).href)
+const render = await import(pathToFileURL(join(repo, 'packages', 'aibench', 'render', 'src', 'storyboard.ts')).href)
 
 let failed = 0
 function check(label, condition, detail) {

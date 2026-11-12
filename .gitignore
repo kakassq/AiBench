@@ -8,13 +8,13 @@ Thumbs.db
 *.tgz
 
 # Remotion / local render scratch
-packages/aibench-render/out/
-packages/aibench-render/tsprobe.mjs
+packages/aibench/render/out/
+packages/aibench/render/tsprobe.mjs
 
 # Dev-only: signs a local DSH browser cookie so the panel can be inspected.
 scripts/dev-cookie.mjs
 
-# NOTE: packages/aibench-render/dist/ is deliberately NOT ignored.
+# NOTE: packages/aibench/render/dist/ is deliberately NOT ignored.
 #
 # It holds the compiled storyboard planner that the Host imports. It has to be
 # committed because dsh-market installs plugins from a GitHub tarball, which does

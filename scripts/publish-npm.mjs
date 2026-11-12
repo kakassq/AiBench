@@ -1,13 +1,16 @@
 /**
- * Publish both packages to the npm registry over HTTPS.
+ * Publish the panel to the npm registry over HTTPS.
  *
  * There is no npm CLI and no git on this machine, so publishing goes straight to
- * the registry API: a single PUT per package carrying the metadata and the
- * tarball as a base64 attachment.
+ * the registry API: a single PUT carrying the metadata and the tarball as a
+ * base64 attachment.
  *
- * Order matters. `dsh-aibench` declares a dependency on `aibench-render`, and npm
- * refuses to publish a package whose dependency does not exist yet — so the
- * render engine goes first.
+ * Only one package now. The render engine used to be a separate npm package
+ * (`aibench-render`), but npm's granular access tokens cannot create a *new*
+ * package — they answer `E_STAGE_REQUIRED` — so a two-package split made the
+ * plugin uninstallable for anyone without a classic token. The engine now ships
+ * inside `dsh-aibench` under `render/`, and Remotion itself is a normal
+ * dependency resolved by the user's package manager.
  *
  * Usage:
  *   node scripts/publish-npm.mjs --token <npm-token> [--dry-run] [--otp 123456]
@@ -25,7 +28,7 @@ const ROOT = resolve(HERE, '..')
 const DIST = join(ROOT, 'dist-packages')
 
 const REGISTRY = process.env.AIBENCH_NPM_REGISTRY || 'https://registry.npmjs.org'
-const PACKAGES = ['aibench-render', 'dsh-aibench']
+const PACKAGES = ['dsh-aibench']
 
 function arg(name) {
   const index = process.argv.indexOf(`--${name}`)
@@ -45,7 +48,7 @@ if (!dryRun && !token) {
 /** Locate the packed tarball for a package, failing loudly if it was not built. */
 function tarballFor(name) {
   if (!existsSync(DIST)) {
-    console.error(`dist-packages/ is missing — run \`pnpm pack\` for each package first.`)
+    console.error(`dist-packages/ is missing — run \`pnpm pack\` first.`)
     process.exit(2)
   }
   const match = readdirSync(DIST).find((file) => file.startsWith(`${name}-`) && file.endsWith('.tgz'))
@@ -56,12 +59,9 @@ function tarballFor(name) {
   return join(DIST, match)
 }
 
-/** Read the package.json out of the tarball's `package/package.json` entry. */
-function manifestFromTarball(tarball) {
-  // The tarball is gzip+tar; rather than pull in a dependency, read the plain
-  // copy that pack leaves behind next to the source.
-  const source = join(ROOT, 'packages', tarball.includes('aibench-render') ? 'aibench-render' : 'aibench', 'package.json')
-  return JSON.parse(readFileSync(source, 'utf8'))
+/** Read the package.json that the tarball was built from. */
+function manifestFromTarball(name) {
+  return JSON.parse(readFileSync(join(ROOT, 'packages', 'aibench', 'package.json'), 'utf8'))
 }
 
 function shasum(buffer) {
@@ -75,7 +75,7 @@ function integrity(buffer) {
 async function publishOne(name) {
   const tarball = tarballFor(name)
   const bytes = readFileSync(tarball)
-  const manifest = manifestFromTarball(tarball)
+  const manifest = manifestFromTarball(name)
   const fileName = tarball.split(/[\\/]/).pop()
 
   if (manifest.name !== name) {
@@ -92,22 +92,17 @@ async function publishOne(name) {
       shasum: shasum(bytes),
       integrity: integrity(bytes),
       tarball: `${REGISTRY}/${name}/-/${fileName}`,
-      fileCount: undefined,
-      unpackedSize: undefined,
     },
   }
-  delete versionRecord.dist.fileCount
-  delete versionRecord.dist.unpackedSize
 
+  const readmePath = join(ROOT, 'packages', 'aibench', 'README.md')
   const document = {
     _id: name,
     name,
     description: manifest.description,
     'dist-tags': { latest: manifest.version },
     versions: { [manifest.version]: versionRecord },
-    readme: existsSync(join(ROOT, 'packages', name === 'aibench-render' ? 'aibench-render' : 'aibench', 'README.md'))
-      ? readFileSync(join(ROOT, 'packages', name === 'aibench-render' ? 'aibench-render' : 'aibench', 'README.md'), 'utf8')
-      : undefined,
+    readme: existsSync(readmePath) ? readFileSync(readmePath, 'utf8') : undefined,
     _attachments: {
       [fileName]: {
         content_type: 'application/octet-stream',

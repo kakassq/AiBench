@@ -40,29 +40,35 @@ const PKG_ROOT = resolve(PLUGIN_DIR, '..')
 /**
  * Locate the render engine.
  *
- * Two layouts have to work with the same code:
+ * The engine ships *inside* this package (`<plugin>/render`), so there is only
+ * one layout to care about — the same directory exists in a source checkout and
+ * in an installed package. Keeping it in-tree is deliberate: the alternative was
+ * a second npm package, and npm's granular tokens cannot create a new package,
+ * so a two-package split would make the plugin uninstallable from the repo.
  *
- *   source checkout  <repo>/packages/aibench  +  <repo>/packages/aibench-render
- *   npm install      node_modules/dsh-aibench +  node_modules/aibench-render
+ * What differs between layouts is where Remotion itself lives:
  *
- * Both are "sibling directory of the plugin", so `PKG_ROOT/aibench-render` is
- * correct in each. The extra candidates only matter for the odd case of a
- * globally hoisted layout, and cost one `existsSync` each.
+ *   source checkout  <plugin>/render/node_modules/@remotion/cli
+ *   installed        <plugin>/node_modules/@remotion/cli  (declared dependency)
+ *   hoisted          <pkg_root>/node_modules/@remotion/cli
+ *
+ * So the engine directory is fixed while the CLI is probed across candidates.
  */
-function resolveRenderDir() {
+const RENDER_DIR = join(PLUGIN_DIR, 'render')
+
+function resolveRenderCli() {
   const candidates = [
-    join(PKG_ROOT, 'aibench-render'),
-    join(PLUGIN_DIR, 'node_modules', 'aibench-render'),
-    join(PKG_ROOT, 'node_modules', 'aibench-render'),
+    join(RENDER_DIR, 'node_modules', '@remotion', 'cli', 'remotion-cli.js'),
+    join(PLUGIN_DIR, 'node_modules', '@remotion', 'cli', 'remotion-cli.js'),
+    join(PKG_ROOT, 'node_modules', '@remotion', 'cli', 'remotion-cli.js'),
   ]
-  for (const dir of candidates) {
-    if (existsSync(join(dir, 'package.json'))) return dir
+  for (const file of candidates) {
+    if (existsSync(file)) return file
   }
   return candidates[0]
 }
 
-const RENDER_DIR = resolveRenderDir()
-const RENDER_CLI = join(RENDER_DIR, 'node_modules', '@remotion', 'cli', 'remotion-cli.js')
+const RENDER_CLI = resolveRenderCli()
 
 const PLATFORM = process.platform === 'win32' ? 'win32' : process.platform
 

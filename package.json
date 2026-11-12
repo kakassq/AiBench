@@ -9,12 +9,11 @@
     "node": ">=22.19"
   },
   "workspaces": [
-    "packages/aibench",
-    "packages/aibench-render"
+    "packages/aibench"
   ],
   "scripts": {
-    "build": "node packages/aibench-render/scripts/build-storyboard.mjs",
-    "pack:all": "node packages/aibench-render/scripts/build-storyboard.mjs && pnpm --dir packages/aibench-render pack --pack-destination ../../dist-packages && pnpm --dir packages/aibench pack --pack-destination ../../dist-packages",
+    "build": "node packages/aibench/render/scripts/build-storyboard.mjs",
+    "pack:all": "node packages/aibench/render/scripts/build-storyboard.mjs && pnpm --dir packages/aibench pack --pack-destination ../../dist-packages",
     "publish:npm": "node scripts/publish-npm.mjs",
     "publish:github": "node scripts/publish-github.mjs",
     "probe": "node scripts/probe.mjs",

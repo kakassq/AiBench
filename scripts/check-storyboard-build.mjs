@@ -15,11 +15,11 @@ import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { compileStoryboard, OUTPUT } from '../packages/aibench-render/scripts/build-storyboard.mjs'
+import { compileStoryboard, OUTPUT } from '../packages/aibench/render/scripts/build-storyboard.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..')
-const SOURCE_TS = join(ROOT, 'packages', 'aibench-render', 'src', 'storyboard.ts')
+const SOURCE_TS = join(ROOT, 'packages', 'aibench', 'render', 'src', 'storyboard.ts')
 
 const problems = []
 const checked = []
@@ -35,7 +35,7 @@ const onDisk = readFileSync(OUTPUT, 'utf8')
 assert(
   'dist/storyboard.mjs is up to date',
   fresh === onDisk,
-  'source changed without rebuilding — run `node packages/aibench-render/scripts/build-storyboard.mjs`',
+  'source changed without rebuilding — run `node packages/aibench/render/scripts/build-storyboard.mjs`',
 )
 
 // 2. Both modules expose the same surface.

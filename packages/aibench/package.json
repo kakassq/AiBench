@@ -18,7 +18,10 @@
     "node": ">=22.19"
   },
   "dependencies": {
-    "aibench-render": "^0.1.0"
+    "@remotion/cli": "4.0.542",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.542"
   },
   "main": "./index.js",
   "exports": {
@@ -35,6 +38,13 @@
     "locale/*.json",
     "icon.svg",
     "agents/**",
+    "render/src/**",
+    "render/dist/**",
+    "render/public/**",
+    "render/scripts/**",
+    "render/package.json",
+    "render/tsconfig.json",
+    "render/README.md",
     "README.md"
   ],
   "dsh": {

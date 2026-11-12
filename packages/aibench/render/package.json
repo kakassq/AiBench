@@ -1,17 +1,11 @@
 {
   "name": "aibench-render",
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "description": "AiBench render engine — deterministic Remotion motion/explainer video renderer. Every frame is drawn by code; no AI image or video generation.",
   "license": "MIT",
   "author": "AiBench contributors",
-  "keywords": [
-    "remotion",
-    "video",
-    "motion-graphics",
-    "deterministic",
-    "aibench"
-  ],
   "engines": {
     "node": ">=22.19"
   },
@@ -24,14 +18,6 @@
     "./dist/storyboard.mjs": "./dist/storyboard.mjs",
     "./package.json": "./package.json"
   },
-  "files": [
-    "src/**",
-    "dist/**",
-    "public/**",
-    "scripts/build-storyboard.mjs",
-    "tsconfig.json",
-    "README.md"
-  ],
   "scripts": {
     "build": "node scripts/build-storyboard.mjs",
     "studio": "remotion studio",
@@ -49,9 +35,5 @@
     "@types/react": "19.1.0",
     "@types/react-dom": "19.1.0",
     "typescript": "5.8.3"
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
   }
 }

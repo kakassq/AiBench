@@ -11,6 +11,29 @@
 
 两个脚本都不需要 git/npm CLI，只用 Node 内置的 `fetch`。
 
+## 只有一个包
+
+早期设计里渲染引擎是独立的 npm 包 `aibench-render`，插件通过 `dependencies` 依赖它。这个设计被放弃了，原因很实际：
+
+**npm 的 granular token 不能创建新包。** 实测 `package: write` + `bypass_2fa: true` 的 granular token 发布会得到：
+
+```
+403 E_STAGE_REQUIRED: this token can only publish to a staging area,
+and "aibench-render" does not exist yet.
+Create it first with a direct-capable token, then use `npm stage publish`.
+```
+
+首创新包必须用 classic token。两包方案意味着任何只有 granular token 的人（包括我们）都装不上插件。
+
+所以渲染引擎现在**在插件包内部**：`packages/aibench/render/`。Remotion 本身是普通依赖，由用户的包管理器安装。
+
+| 目录 | 作用 |
+|---|---|
+| `packages/aibench/` | 插件包 `dsh-aibench`，含 Host（`index.js`）、Client（`client.js`）、内置 Agent、以及 `render/` |
+| `packages/aibench/render/` | Remotion 渲染工程（`src/`、`dist/`、`public/`），跟着插件一起发布 |
+
+`render/package.json` 保留了 `private: true` 和它自己的依赖声明——它是**工作区内的工程**，不是可独立安装的包。
+
 ## 通道一：npm
 
 ### 名称占用（实测）
@@ -19,13 +42,6 @@
 |---|---|
 | `aibench` | **已被占用**（作者 elnino0009_1，AI 跑分基准） |
 | `dsh-aibench` | 可用 ✅ |
-| `aibench-render` | 可用 ✅ |
-
-所以发布两个包：`aibench-render`（渲染引擎）+ `dsh-aibench`（面板）。
-
-### 顺序要求
-
-`dsh-aibench` 的 `dependencies` 里声明了 `aibench-render`。**npm 拒绝发布一个依赖还不存在的包**，所以必须先发渲染引擎。`publish-npm.mjs` 里的 `PACKAGES` 数组已经按这个顺序写好。
 
 ### 需要什么
 
@@ -36,10 +52,8 @@
 | token 类型 | 结果 |
 |---|---|
 | Granular，只读 | `403 You may not perform that action with these credentials.` |
-| Granular，`package: write` + `bypass_2fa: true` | `403 E_STAGE_REQUIRED`：「this token can only publish to a staging area, and `aibench-render` does not exist yet. Create it first with a direct-capable token」 |
+| Granular，`package: write` + `bypass_2fa: true` | `403 E_STAGE_REQUIRED`：只能推 staging 暂存区，首创新包必须用 direct-capable token |
 | Classic，Automation | 正常发布 |
-
-Granular token 即使权限全给、2FA 豁免也开了，**也只能往 staging 暂存区推**；首次创建包必须用 direct-capable 的 Classic token。发布已有的包之后可以换 Granular，但首版不行。
 
 Automation 类型同时自动满足 2FA 要求（`bypass_2fa = true`）。如果账户开了两步验证而用了 Publish 类型，每次发布都要现场输 6 位动态码，30 秒过期，脚本没法处理。
 
@@ -64,9 +78,8 @@ node scripts/publish-npm.mjs --token npm_xxxxxxxx
 ### 发布前必做
 
 ```bash
-node packages/aibench-render/scripts/build-storyboard.mjs   # 重编分镜规划器
-cd packages/aibench-render && pnpm pack --pack-destination ../../dist-packages
-cd ../aibench && pnpm pack --pack-destination ../../dist-packages
+node packages/aibench/render/scripts/build-storyboard.mjs   # 重编分镜规划器
+cd packages/aibench && pnpm pack --pack-destination ../../dist-packages
 ```
 
 ## 通道二：GitHub
@@ -75,7 +88,7 @@ cd ../aibench && pnpm pack --pack-destination ../../dist-packages
 
 一个 Personal Access Token：
 
-- classic：勾 `repo`（要建仓库）+ `write:discussion` 不需要
+- classic：勾 `repo`（要建仓库 + 推代码）
 - 或 fine-grained：`Administration: write`（建仓库）+ `Contents: write`（推代码）
 
 ```bash
@@ -84,6 +97,8 @@ node scripts/publish-github.mjs --token ghp_xxxxxxxx   # 真推
 ```
 
 脚本会自动：建仓库（已存在则复用）→ 上传二进制为 blob → 建 tree → 建 commit → 更新 `main` → 设 topics（含 `dsh-plugin`）。
+
+**SSH keys 和 GPG keys 都不需要。** SSH 是给 `git` 协议用的，本机没有 git；GPG 只影响 commit 的「Verified」徽章，不影响能否推送。
 
 ## 通道三：DSH 插件市场
 
@@ -110,7 +125,7 @@ data/plugins/<owner>__AiBench--packages-aibench.yml
 | `package.json` 必须声明 `dsh.bundle` | ✅ 已声明（只声明 `dsh.client` 会被拒） |
 | 仓库创建满 **1 天** | ⏳ 建仓后等一天 |
 | 仓库有 `dsh-plugin` topic | ✅ 脚本自动设 |
-| 有真实可运行代码 | ✅ 2158 行 Host + 2600 行 Client |
+| 有真实可运行代码 | ✅ Host + Client 均有完整实现 |
 | 描述必须属实 | ✅ 没写数字指标 |
 | 项目活跃维护 | ⏳ 靠后续提交维持 |
 
@@ -120,11 +135,11 @@ data/plugins/<owner>__AiBench--packages-aibench.yml
 - `https://awesome-dsh-plugin.com/index.json` — 本机实测 **31.3s**，超过 DSH 的 15s 预算
 - `https://dshmarket.com/index.json` — 同上
 
-## 两个真实踩到的坑
+## 三个真实踩到的坑
 
 ### 坑 1：`node_modules` 下的 TypeScript 不能剥离类型
 
-插件原本直接 `import('src/storyboard.ts')`，让 Node 剥离类型。在源码 checkout 里（符号链接）能跑，但**从 npm 安装后文件位于 `node_modules` 下，Node 直接拒绝**：
+插件原本直接 `import('src/storyboard.ts')`，让 Node 剥离类型。在源码 checkout 里能跑，但**从 npm 安装后文件位于 `node_modules` 下，Node 直接拒绝**：
 
 ```
 Error [ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING]: Stripping types is
@@ -133,21 +148,30 @@ currently unsupported for files under node_modules
 
 症状会是「装得上，但每个分镜调用都崩」—— 和 bnpanel「装得上但 `render.available: false`」是同一类失败。
 
-**修复**：预编译成 `dist/storyboard.mjs` 随包发布，`storyboardEntry()` 按目录判断用哪个。
+**修复**：预编译成 `render/dist/storyboard.mjs` 随包发布，`storyboardEntry()` 按目录判断用哪个。
 **守护**：`scripts/check-storyboard-build.mjs` 断言产物与源码重新编译的结果一致，并逐一比对 108 组参数的分镜输出。
 
 ### 坑 2：`dist/` 不能进 `.gitignore`
 
 dsh-market 从 **GitHub tarball**（codeload）安装插件，**不跑 npm 的 `prepack` 钩子**。如果 `dist/` 被 gitignore，从仓库安装就没有预编译产物，直接崩。
 
-所以 `.gitignore` 里显式保留了 `packages/aibench-render/dist/`，并写了注释说明原因。这是那种「本地一切正常、用户装上就崩」的问题，靠 `check-installed-layout.mjs` 提前发现。
+所以 `.gitignore` 里显式保留了 `packages/aibench/render/dist/`，并写了注释说明原因。这是那种「本地一切正常、用户装上就崩」的问题，靠 `check-installed-layout.mjs` 提前发现。
+
+### 坑 3：PowerShell `Set-Content` 会破坏 UTF-8 中文
+
+用 `Set-Content` 批量改脚本路径后，三个含中文的 `.mjs` 变成非 UTF-8，Node 报：
+
+```
+SyntaxError: Invalid or unexpected token
+```
+
+**改含中文的文件要用 `node -e` + `fs.writeFileSync(path, text, 'utf8')`，或者用编辑工具。** 事后可以用 `node --check <file>` 快速发现这类损坏。
 
 ## 发布后验证
 
 ```bash
 # npm 上有没有
 curl https://registry.npmjs.org/dsh-aibench
-curl https://registry.npmjs.org/aibench-render
 
 # 从 npm 装一遍（真实验证，不是本地符号链接）
 cd /tmp && mkdir abx && cd abx
@@ -165,5 +189,3 @@ pnpm add dsh-aibench
 - `v0.1.0-s2` — Agent 包 + SkillBridge + 模板映射
 - `v0.1.0-s3` — 造 Agent（Forge）
 - `v0.1.0-s4` — 商店 / 更新 / 回滚
-
-npm 版本号跟 tag 走，`dsh-aibench` 与 `aibench-render` 保持同版本，因为它们的契约是紧耦合的。
