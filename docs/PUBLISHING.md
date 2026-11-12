@@ -135,7 +135,7 @@ data/plugins/<owner>__AiBench--packages-aibench.yml
 - `https://awesome-dsh-plugin.com/index.json` — 本机实测 **31.3s**，超过 DSH 的 15s 预算
 - `https://dshmarket.com/index.json` — 同上
 
-## 三个真实踩到的坑
+## 四个真实踩到的坑
 
 ### 坑 1：`node_modules` 下的 TypeScript 不能剥离类型
 
@@ -157,7 +157,30 @@ dsh-market 从 **GitHub tarball**（codeload）安装插件，**不跑 npm 的 `
 
 所以 `.gitignore` 里显式保留了 `packages/aibench/render/dist/`，并写了注释说明原因。这是那种「本地一切正常、用户装上就崩」的问题，靠 `check-installed-layout.mjs` 提前发现。
 
-### 坑 3：PowerShell `Set-Content` 会破坏 UTF-8 中文
+### 坑 3：pnpm 把依赖放在**兄弟目录**，不是嵌套 `node_modules`
+
+这个坑只会在真实 `pnpm add` 之后暴露，本地符号链接开发永远看不到。
+
+pnpm 不把依赖提升到项目的 `node_modules`，而是把每个包放在虚拟仓里，**它的依赖与它并列**：
+
+```
+node_modules/.pnpm/dsh-aibench@<hash>/node_modules/
+├── dsh-aibench/          ← 插件本身
+├── @remotion/            ← 它的依赖，兄弟位置
+├── react
+└── remotion
+```
+
+所以 `@remotion/cli` 在 `<pkg_root>/@remotion/cli`，**不是** `<plugin>/node_modules/@remotion/cli`。最初只探测后者，结果在**装得好好的**环境里报 `render.available: false`。
+
+**修复**：`resolveRenderCli()` 按顺序探测四个位置，其中 `PKG_ROOT/@remotion/cli` 同时命中 pnpm 与扁平 npm 布局。
+**守护**：`check-installed-layout.mjs` 现在会先找 `@remotion` 到底在哪 —— 如果依赖存在但解析不到，**直接失败**（而不是静默跳过），因为那正是这个 bug 的形状。用真实安装跑：
+
+```bash
+node scripts/check-installed-layout.mjs .tmp/installsim/node_modules/dsh-aibench
+```
+
+### 坑 4：PowerShell `Set-Content` 会破坏 UTF-8 中文
 
 用 `Set-Content` 批量改脚本路径后，三个含中文的 `.mjs` 变成非 UTF-8，Node 报：
 
@@ -166,6 +189,9 @@ SyntaxError: Invalid or unexpected token
 ```
 
 **改含中文的文件要用 `node -e` + `fs.writeFileSync(path, text, 'utf8')`，或者用编辑工具。** 事后可以用 `node --check <file>` 快速发现这类损坏。
+
+同一个坑的另一种形状：用 `Set-Content` 写 `package.json` 会带上 BOM，Remotion 的打包器读它会报
+`SyntaxError: Unexpected token '﻿', "﻿{"name":""... is not valid JSON`。
 
 ## 发布后验证
 
@@ -177,6 +203,9 @@ curl https://registry.npmjs.org/dsh-aibench
 cd /tmp && mkdir abx && cd abx
 echo '{"name":"abx","private":true}' > package.json
 pnpm add dsh-aibench
+
+# 装完立刻验证渲染链路，别只看能不能装
+node <repo>/scripts/check-installed-layout.mjs ./node_modules/dsh-aibench
 ```
 
 然后 `plugin_manager action=install_bundle target=<装好的路径>` 装进 DSH，确认侧栏出图标、面板能开、能出片。

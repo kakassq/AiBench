@@ -46,13 +46,18 @@ const PKG_ROOT = resolve(PLUGIN_DIR, '..')
  * a second npm package, and npm's granular tokens cannot create a new package,
  * so a two-package split would make the plugin uninstallable from the repo.
  *
- * What differs between layouts is where Remotion itself lives:
+ * What differs between layouts is where Remotion itself lands:
  *
- *   source checkout  <plugin>/render/node_modules/@remotion/cli
- *   installed        <plugin>/node_modules/@remotion/cli  (declared dependency)
- *   hoisted          <pkg_root>/node_modules/@remotion/cli
+ *   source checkout   <plugin>/render/node_modules/@remotion/cli
+ *   npm (flat)        <pkg_root>/@remotion/cli        pkg_root = node_modules/
+ *   pnpm              <pkg_root>/@remotion/cli        pkg_root = .pnpm/<id>/node_modules/
+ *   npm (nested)      <plugin>/node_modules/@remotion/cli
  *
- * So the engine directory is fixed while the CLI is probed across candidates.
+ * The pnpm case is the one that bites: it does not hoist to the project's
+ * node_modules, it puts each package's dependencies as *siblings* inside the
+ * virtual store directory. So `PKG_ROOT/@remotion/cli` — not
+ * `PKG_ROOT/node_modules/@remotion/cli` — is the path that works there, and it
+ * happens to be the correct one for a flat npm install too.
  */
 const RENDER_DIR = join(PLUGIN_DIR, 'render')
 
@@ -60,6 +65,7 @@ function resolveRenderCli() {
   const candidates = [
     join(RENDER_DIR, 'node_modules', '@remotion', 'cli', 'remotion-cli.js'),
     join(PLUGIN_DIR, 'node_modules', '@remotion', 'cli', 'remotion-cli.js'),
+    join(PKG_ROOT, '@remotion', 'cli', 'remotion-cli.js'),
     join(PKG_ROOT, 'node_modules', '@remotion', 'cli', 'remotion-cli.js'),
   ]
   for (const file of candidates) {

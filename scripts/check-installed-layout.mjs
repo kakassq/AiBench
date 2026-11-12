@@ -1,18 +1,37 @@
 /**
- * Prove the plugin works from a real npm-install layout.
+ * Prove the plugin works from a real package-manager layout.
  *
  * This is the check that catches the class of bug that makes a plugin "install
- * fine, then render nothing": the source checkout and the installed layout are
- * different filesystems (symlink vs node_modules), and several things that work
- * in the checkout break under node_modules — type stripping being the big one.
+ * fine, then render nothing". Two real failures have been found by it:
+ *
+ *   1. Node refuses to strip types for files under node_modules
+ *      (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING), so the planner has to ship
+ *      prebuilt as dist/storyboard.mjs.
+ *   2. pnpm does not hoist a package's dependencies into the project's
+ *      node_modules — it puts them as *siblings* inside the virtual store dir,
+ *      so `@remotion/cli` lives at `<pkg_root>/@remotion/cli`, not at
+ *      `<plugin>/node_modules/@remotion/cli`. Probing only the latter reported
+ *      render.available=false on a perfectly good install.
+ *
+ * Point it at a real install to get the full set of assertions:
+ *
+ *   node scripts/check-installed-layout.mjs <path-to>/node_modules/dsh-aibench
+ *
+ * With no argument it uses `.tmp/installtest/...`, a hand-extracted tarball that
+ * has no dependencies — the Remotion assertions are then reported as skipped.
  */
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const HERE = new URL('.', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const ROOT = resolve(HERE, '..')
-const INSTALLED = process.argv[2] || join(ROOT, '.tmp', 'installtest', 'node_modules', 'dsh-aibench')
+const INSTALLED_ARG = process.argv[2] || join(ROOT, '.tmp', 'installtest', 'node_modules', 'dsh-aibench')
+
+// pnpm puts the real package in `.pnpm/<id>/node_modules/<name>` and symlinks it
+// from the project. Import resolves through the symlink, so every path this
+// script compares against must be a real path too.
+const INSTALLED = existsSync(INSTALLED_ARG) ? realpathSync(INSTALLED_ARG) : INSTALLED_ARG
 
 const problems = []
 const checked = []
@@ -41,10 +60,20 @@ assert('built storyboard module present', existsSync(join(render.projectDir, 'di
 // The Remotion CLI only exists after the user runs their package manager, so a
 // tarball-only scratch layout legitimately has no dependencies. Report that
 // state explicitly instead of calling it a failure — but never pass it silently.
-const depsInstalled = existsSync(join(INSTALLED, 'node_modules')) || existsSync(join(render.projectDir, 'node_modules'))
-if (depsInstalled) {
-  assert('render CLI resolvable', existsSync(render.cli), render.cli)
+const cliPresent = existsSync(render.cli)
+const anyRemotion = [
+  join(INSTALLED, 'render', 'node_modules', '@remotion'),
+  join(INSTALLED, 'node_modules', '@remotion'),
+  join(resolve(INSTALLED, '..'), '@remotion'),
+  join(resolve(INSTALLED, '..'), 'node_modules', '@remotion'),
+].some((dir) => existsSync(dir))
+
+if (anyRemotion) {
+  // A dependency is installed but the resolver missed it — that is the pnpm
+  // sibling layout bug, and it must fail loudly rather than be skipped.
+  assert('render CLI resolvable', cliPresent, `cli=${render.cli}`)
   assert('render engine reports available', render.available === true, `available=${render.available}`)
+  assert('render CLI path points at an existing file', cliPresent && existsSync(render.cli), render.cli)
 } else {
   console.log('SKIP  render CLI: Remotion dependencies not installed in this layout')
 }
