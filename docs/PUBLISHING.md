@@ -29,7 +29,27 @@
 
 ### 需要什么
 
-一个 npm access token（Automation 或 Publish 类型），从 <https://www.npmjs.com/settings/~/tokens> 创建。
+一个 npm access token，从 <https://www.npmjs.com/settings/~/tokens> 创建。
+
+**必须是 Classic 类型的 Automation token。** 这条不是偏好，是 npm 的硬规则，实测连续撞了三次：
+
+| token 类型 | 结果 |
+|---|---|
+| Granular，只读 | `403 You may not perform that action with these credentials.` |
+| Granular，`package: write` + `bypass_2fa: true` | `403 E_STAGE_REQUIRED`：「this token can only publish to a staging area, and `aibench-render` does not exist yet. Create it first with a direct-capable token」 |
+| Classic，Automation | 正常发布 |
+
+Granular token 即使权限全给、2FA 豁免也开了，**也只能往 staging 暂存区推**；首次创建包必须用 direct-capable 的 Classic token。发布已有的包之后可以换 Granular，但首版不行。
+
+Automation 类型同时自动满足 2FA 要求（`bypass_2fa = true`）。如果账户开了两步验证而用了 Publish 类型，每次发布都要现场输 6 位动态码，30 秒过期，脚本没法处理。
+
+**怎么确认手里的 token 对不对**（不用等发布失败）：
+
+```bash
+curl -H "Authorization: Bearer npm_xxx" https://registry.npmjs.org/-/npm/v1/tokens
+```
+
+看返回里的 `bypass_2fa` 和 `permissions[].action`。注意这个接口对 Classic token 返回的是全部 token 列表，对 Granular token 只返回自己那一个。
 
 ```bash
 # 先确认打包内容正确
@@ -39,7 +59,7 @@ node scripts/publish-npm.mjs --dry-run
 node scripts/publish-npm.mjs --token npm_xxxxxxxx
 ```
 
-开了两步验证的账号要加 `--otp 123456`。
+开了两步验证的账号要加 `--otp 123456`（仅 Publish 类型需要）。
 
 ### 发布前必做
 
