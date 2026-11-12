@@ -1,0 +1,57 @@
+{
+  "name": "aibench-render",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "AiBench render engine — deterministic Remotion motion/explainer video renderer. Every frame is drawn by code; no AI image or video generation.",
+  "license": "MIT",
+  "author": "AiBench contributors",
+  "keywords": [
+    "remotion",
+    "video",
+    "motion-graphics",
+    "deterministic",
+    "aibench"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
+  "main": "./src/index.ts",
+  "exports": {
+    "./storyboard": {
+      "types": "./src/storyboard.ts",
+      "default": "./dist/storyboard.mjs"
+    },
+    "./dist/storyboard.mjs": "./dist/storyboard.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/**",
+    "dist/**",
+    "public/**",
+    "scripts/build-storyboard.mjs",
+    "tsconfig.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build-storyboard.mjs",
+    "studio": "remotion studio",
+    "render": "remotion render AiClip out/aiclip.mp4",
+    "still": "remotion still AiClip out/frame.png",
+    "audio": "node scripts/generate-audio.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.542",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.542"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.0",
+    "@types/react-dom": "19.1.0",
+    "typescript": "5.8.3"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

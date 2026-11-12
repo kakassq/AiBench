@@ -1,0 +1,36 @@
+{
+  "id": "explainer.entropy",
+  "title": "熵增：时间为什么只往前流",
+  "track": "0",
+  "brief": "熵增定律解释了为什么时间只朝一个方向流，而不是两个方向",
+  "durationSec": 20,
+  "aspect": "16:9",
+  "style": {
+    "look": "swiss-dynamic-type",
+    "palette": "科技暗色",
+    "tokens": ["swiss-dynamic-type", "blueprint"],
+    "motion": "cut-on-beat",
+    "rhythm": 120,
+    "font": "inter"
+  },
+  "audio": {
+    "bgm": { "bpm": 120, "mood": "neutral" },
+    "sfxSet": ["tick", "whoosh"],
+    "voice": { "mode": "none", "lang": "zh" },
+    "subtitles": { "kind": "bilingual" }
+  },
+  "beatMap": {
+    "rule": "每次状态变化卡在拍上",
+    "notes": ["标题出现卡第 1 拍", "三步依次落在第 6/12/18 拍", "结论卡第 32 拍"]
+  },
+  "defaults": {
+    "type": 0,
+    "style": 0,
+    "palette": 0,
+    "flow": 0,
+    "durationSec": 20,
+    "beatBpm": 120,
+    "subtitle": "bilingual",
+    "aspect": "16:9"
+  }
+}

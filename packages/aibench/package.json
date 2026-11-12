@@ -1,0 +1,56 @@
+{
+  "name": "dsh-aibench",
+  "version": "0.1.0",
+  "description": "Local-first parametric video studio panel. Renders deterministic motion graphics with Remotion — no AI image or video generation.",
+  "type": "module",
+  "license": "MIT",
+  "author": "AiBench contributors",
+  "keywords": [
+    "dsh",
+    "deepseek",
+    "dsh-plugin",
+    "panel",
+    "remotion",
+    "video",
+    "aibench"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
+  "dependencies": {
+    "aibench-render": "^0.1.0"
+  },
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "agents/**",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

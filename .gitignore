@@ -1,0 +1,23 @@
+node_modules/
+dist-packages/
+out/
+*.log
+.DS_Store
+Thumbs.db
+.tmp/
+*.tgz
+
+# Remotion / local render scratch
+packages/aibench-render/out/
+packages/aibench-render/tsprobe.mjs
+
+# Dev-only: signs a local DSH browser cookie so the panel can be inspected.
+scripts/dev-cookie.mjs
+
+# NOTE: packages/aibench-render/dist/ is deliberately NOT ignored.
+#
+# It holds the compiled storyboard planner that the Host imports. It has to be
+# committed because dsh-market installs plugins from a GitHub tarball, which does
+# not run npm's `prepack` hook — a gitignored dist/ would mean every install from
+# the repo crashes with ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING.
+# `scripts/check-storyboard-build.mjs` fails the build if it drifts from source.

@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>AiBench — 主控面板 / Studio 设计稿</title>
+<style>
+  :root{
+    --bg:#ffffff; --layer:#f7f8fa; --layer2:#eef0f5;
+    --line:#e4e7ed; --line2:#d2d8e2;
+    --ink:#1b1f2a; --ink2:#6b7280; --ink3:#9aa1ad;
+    --brand:#6d5efc; --brand-soft:#efedfe;
+    --ok:#1f9d63; --ok-soft:#e8f7ef;
+    --chip:#f2f3f7;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:34px 0 60px; background:#e9ebf1;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+    color:var(--ink); -webkit-font-smoothing:antialiased;
+  }
+  .cap{
+    width:1220px; margin:0 auto 10px; font-size:12.5px; color:#5b6274;
+    letter-spacing:.3px; font-weight:600;
+  }
+  .cap span{font-weight:400;color:#8a90a0;margin-left:8px;}
+  .frame{
+    width:1220px; margin:0 auto 34px; background:var(--bg); border-radius:14px;
+    border:1px solid #d9dde6; box-shadow:0 18px 50px rgba(20,25,40,.12);
+    overflow:hidden;
+  }
+
+  /* ---------- shared overlay shell ---------- */
+  .head{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line);}
+  .brand{font-size:13px;font-weight:700;color:var(--brand);letter-spacing:.2px;}
+  .sub{font-size:11px;color:var(--ink2);}
+  .spacer{flex:1;}
+  .iconbtn{
+    width:26px;height:26px;border-radius:7px;border:1px solid var(--line2);background:var(--bg);
+    display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--ink2);cursor:default;
+  }
+  .btn{
+    border:1px solid var(--line2);background:var(--bg);color:var(--ink);
+    font-size:11.5px;padding:5px 11px;border-radius:7px;white-space:nowrap;
+  }
+  .btn.primary{background:#171a22;border-color:#171a22;color:#fff;}
+  .btn.sm{padding:4px 9px;font-size:11px;}
+
+  /* ---------- frame 1: master panel ---------- */
+  .toolbar{display:flex;align-items:center;padding:14px 16px 6px;}
+  .h1{font-size:17px;font-weight:650;letter-spacing:-.2px;}
+  .h1note{font-size:11px;color:var(--ink3);margin-left:10px;}
+  .badge-ok{
+    display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ok);
+    background:var(--ok-soft);border:1px solid #cbe9d9;padding:3px 9px;border-radius:999px;
+  }
+  .dot{width:5px;height:5px;border-radius:50%;background:var(--ok);}
+
+  .wall{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:14px 16px 4px;}
+  .acard{
+    border:1px solid var(--line);border-radius:12px;background:var(--bg);
+    padding:14px 15px 12px;display:flex;flex-direction:column;gap:0;
+  }
+  .acard .top{display:flex;align-items:flex-start;gap:10px;}
+  .aicon{
+    width:34px;height:34px;border-radius:9px;flex:0 0 auto;display:flex;
+    align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px;
+  }
+  .i1{background:linear-gradient(150deg,#6d5efc,#38d9a9);}
+  .i2{background:linear-gradient(150deg,#ff7a45,#c56bff);}
+  .i3{background:linear-gradient(150deg,#2f6bff,#38d9a9);}
+  .aname{font-size:13.5px;font-weight:650;line-height:1.25;}
+  .aver{font-size:10.5px;color:var(--ink3);margin-top:2px;font-variant-numeric:tabular-nums;}
+  .abadge{
+    margin-left:auto;font-size:10px;padding:2px 8px;border-radius:999px;
+    border:1px solid #cbe9d9;color:var(--ok);background:var(--ok-soft);white-space:nowrap;
+  }
+  .abadge.builtin{border-color:#d6d2fb;color:var(--brand);background:var(--brand-soft);}
+  .adesc{font-size:11.5px;color:#4b5162;line-height:1.65;margin-top:11px;min-height:56px;}
+  .ameta{font-size:10.5px;color:var(--ink3);margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;}
+  .ameta b{font-weight:600;color:#5b6274;}
+  .aacts{display:flex;gap:7px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line);}
+  .aacts .btn{flex:1;text-align:center;}
+  .aacts .btn.primary{flex:1.35;}
+
+  .footline{display:flex;align-items:center;gap:14px;padding:12px 16px 16px;border-top:1px solid var(--line);margin-top:14px;}
+  .stat{font-size:11px;color:var(--ink2);}
+  .stat b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums;}
+
+  /* ---------- frame 2: studio ---------- */
+  .crumb{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);font-size:11.5px;color:var(--ink2);}
+  .crumb b{color:var(--ink);font-weight:600;}
+  .crumb .back{color:var(--brand);}
+  .cols{display:grid;grid-template-columns:286px 1fr 300px;min-height:560px;}
+  .col{border-right:1px solid var(--line);padding:13px 14px;display:flex;flex-direction:column;gap:13px;}
+  .col:last-child{border-right:none;}
+  .sech{font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--ink3);}
+  .tpl{
+    border:1px solid var(--line);border-radius:9px;padding:9px 10px;font-size:11.5px;
+    display:flex;flex-direction:column;gap:3px;background:var(--bg);
+  }
+  .tpl[data-on="true"]{border-color:var(--brand);background:var(--brand-soft);}
+  .tpl b{font-weight:600;font-size:11.5px;}
+  .tpl span{font-size:10px;color:var(--ink3);}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:10.5px;color:var(--ink2);}
+  .ctl{
+    border:1px solid var(--line2);border-radius:7px;padding:5px 9px;font-size:11.5px;
+    background:var(--bg);display:flex;align-items:center;justify-content:space-between;color:var(--ink);
+  }
+  .ctl em{font-style:normal;color:var(--ink3);font-size:10px;}
+  .seg{display:flex;gap:4px;}
+  .seg i{
+    flex:1;text-align:center;font-style:normal;font-size:10.5px;padding:4px 0;border-radius:6px;
+    border:1px solid var(--line2);color:var(--ink2);
+  }
+  .seg i[data-on="true"]{border-color:var(--brand);color:var(--brand);background:var(--brand-soft);font-weight:600;}
+
+  .preview{border:1px solid var(--line2);border-radius:10px;overflow:hidden;position:relative;background:#0b1020;}
+  .pv{position:relative;aspect-ratio:16/9;overflow:hidden;}
+  .pv .tag{position:absolute;right:14px;top:12px;font-size:9px;letter-spacing:1.2px;color:#8f9bd0;font-family:ui-monospace,Menlo,monospace;}
+  .pv .kick{position:absolute;left:26px;top:34%;font-size:9.5px;letter-spacing:1.5px;color:#a99cff;font-weight:600;}
+  .pv .big{position:absolute;left:26px;top:41%;right:60px;font-size:40px;font-weight:800;line-height:1.06;color:#e8ecff;letter-spacing:-1px;}
+  .pv .ul{position:absolute;left:26px;top:72%;width:120px;height:3px;background:#6d5efc;}
+  .pv .cap{
+    position:absolute;left:0;right:0;bottom:0;padding:8px 26px;background:rgba(6,9,20,.72);
+    border-top:1px solid rgba(120,140,255,.18);font-size:11px;color:#dfe6ff;letter-spacing:.2px;
+  }
+  .pv .cap small{color:#9aa6d4;display:block;font-size:9.5px;margin-top:1px;letter-spacing:1px;}
+  .pbar{display:flex;align-items:center;gap:9px;padding:8px 11px;border-top:1px solid rgba(255,255,255,.08);background:#0d1226;}
+  .pbar .track{flex:1;height:3px;border-radius:2px;background:#232a49;position:relative;}
+  .pbar .track i{position:absolute;left:0;top:0;bottom:0;width:34%;background:#6d5efc;border-radius:2px;}
+  .pbar .track u{position:absolute;left:34%;top:-3px;width:2px;height:9px;background:#fff;}
+  .pbar span{font-size:9.5px;color:#8f9bd0;font-family:ui-monospace,Menlo,monospace;}
+
+  .shots{display:flex;flex-direction:column;gap:5px;}
+  .shot{display:grid;grid-template-columns:18px 62px 1fr 54px;gap:8px;align-items:center;font-size:10.5px;color:var(--ink2);padding:5px 8px;border-radius:6px;}
+  .shot[data-on="true"]{background:var(--brand-soft);color:var(--ink);}
+  .shot b{font-weight:600;color:var(--ink);font-size:10.5px;}
+  .shot .bar{height:5px;border-radius:3px;background:var(--layer2);overflow:hidden;}
+  .shot .bar i{display:block;height:100%;background:var(--brand);opacity:.55;}
+
+  .chat{display:flex;flex-direction:column;gap:9px;}
+  .msg{font-size:11px;line-height:1.6;padding:8px 10px;border-radius:9px;background:var(--layer);color:#4b5162;border:1px solid var(--line);}
+  .msg.me{background:var(--brand-soft);border-color:#ddd8fd;color:#3c3570;}
+  .quicks{display:flex;flex-wrap:wrap;gap:5px;}
+  .quicks i{font-style:normal;font-size:10px;padding:3px 8px;border-radius:999px;border:1px solid var(--line2);color:var(--ink2);}
+  .input{
+    margin-top:auto;border:1px solid var(--line2);border-radius:9px;padding:7px 9px;
+    font-size:11px;color:var(--ink3);display:flex;align-items:center;justify-content:space-between;
+  }
+  .input .send{width:20px;height:20px;border-radius:6px;background:#171a22;color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;}
+  .exportbox{border:1px solid var(--line);border-radius:9px;padding:10px;display:flex;flex-direction:column;gap:7px;}
+  .exportbox .row{display:flex;gap:6px;}
+  .exportbox .row .btn{flex:1;text-align:center;}
+</style>
+</head>
+<body>
+
+<div class="cap">① 主控面板 <span>进 AiBench 第一眼：Agent 卡片墙，点「打开创作台」才进入某个 Agent 的 Studio</span></div>
+<div class="frame">
+  <div class="head">
+    <span class="brand">AiBench</span>
+    <span class="sub">本地渲染 · 参数化 · 不生图不生视频</span>
+    <span class="spacer"></span>
+    <span class="badge-ok"><span class="dot"></span>渲染引擎就绪 v24.21.0</span>
+    <span class="iconbtn">↻</span>
+    <span class="iconbtn">×</span>
+  </div>
+
+  <div class="toolbar">
+    <span class="h1">创作台</span>
+    <span class="h1note">选一个智能体开始 · 每个智能体是一套独立的动效语言</span>
+    <span class="spacer"></span>
+    <span class="btn">项目库 2</span>
+    <span class="btn">✨ 造 Agent</span>
+  </div>
+
+  <div class="wall">
+    <div class="acard">
+      <div class="top">
+        <div class="aicon i1">解</div>
+        <div>
+          <div class="aname">AiBench Explainer</div>
+          <div class="aver">v0.1.0 · 科普解说</div>
+        </div>
+        <div class="abadge">已安装</div>
+      </div>
+      <div class="adesc">硬核概念科普：瑞士动态排版、蓝图推演、终端 CRT。<br>横版 16:9 · 双语硬字幕 · 不需要旁白。</div>
+      <div class="ameta"><span>模板 <b>3</b></span><span>技能 <b>1</b></span><span>赛道 <b>0 / 1.6</b></span></div>
+      <div class="aacts">
+        <span class="btn sm">补安装</span>
+        <span class="btn sm primary">▶ 打开创作台</span>
+        <span class="btn sm">导出</span>
+      </div>
+    </div>
+
+    <div class="acard">
+      <div class="top">
+        <div class="aicon i2">片</div>
+        <div>
+          <div class="aname">AiBench Reel</div>
+          <div class="aver">v0.1.0 · 品牌 / 社媒短片</div>
+        </div>
+        <div class="abadge">已安装</div>
+      </div>
+      <div class="adesc">字标起手、几何推进、卡点切镜。<br>竖版 9:16 / 方版 1:1 · 每格 2 秒 · 4 字以内字幕。</div>
+      <div class="ameta"><span>模板 <b>3</b></span><span>技能 <b>1</b></span><span>赛道 <b>1.1 / 1.4 / 1.5</b></span></div>
+      <div class="aacts">
+        <span class="btn sm">补安装</span>
+        <span class="btn sm primary">▶ 打开创作台</span>
+        <span class="btn sm">导出</span>
+      </div>
+    </div>
+
+    <div class="acard">
+      <div class="top">
+        <div class="aicon i3">数</div>
+        <div>
+          <div class="aname">AiBench Data</div>
+          <div class="aver">v0.1.0 · 数据故事</div>
+        </div>
+        <div class="abadge builtin">内置 · 待安装</div>
+      </div>
+      <div class="adesc">三个数字、一句结论：图表推演与信息图叙事。<br>横版 16:9 · 双语硬字幕 · 数据卡自动排版。</div>
+      <div class="ameta"><span>模板 <b>3</b></span><span>技能 <b>2</b></span><span>赛道 <b>1.3</b></span></div>
+      <div class="aacts">
+        <span class="btn sm">安装</span>
+        <span class="btn sm" style="opacity:.45">▶ 打开创作台</span>
+        <span class="btn sm">导出</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footline">
+    <span class="stat">智能体 <b>3</b></span>
+    <span class="stat">模板 <b>9</b></span>
+    <span class="stat">项目 <b>2</b></span>
+    <span class="stat">渲染引擎 <b>Remotion 4.0.542</b></span>
+    <span class="spacer"></span>
+    <span class="stat" style="color:#9aa1ad">数据目录 C:\Users\Administrator\AppData\Roaming\.dsh\profiles\desktop\aibench</span>
+  </div>
+</div>
+
+<div class="cap">② Studio（某个 Agent 的作用域）<span>左：模板 + 七槽位参数 + 分镜表 ｜ 中：真实渲染帧 + 播放头 ｜ 右：该 Agent 的 AI 助手</span></div>
+<div class="frame">
+  <div class="head">
+    <span class="brand">AiBench</span>
+    <span class="sub">本地渲染 · 参数化 · 不生图不生视频</span>
+    <span class="spacer"></span>
+    <span class="iconbtn">↻</span>
+    <span class="iconbtn">×</span>
+  </div>
+
+  <div class="crumb">
+    <span class="back">← 创作台</span>
+    <span>/</span>
+    <b>AiBench Explainer</b>
+    <span>/</span>
+    <span>熵增：为什么时间只往前流</span>
+    <span class="spacer"></span>
+    <span style="font-size:10.5px;color:#9aa1ad">草稿 · 600 帧 · 20.0s</span>
+  </div>
+
+  <div class="cols">
+    <!-- left -->
+    <div class="col">
+      <div class="sech">模板 · 3</div>
+      <div class="tpl" data-on="true"><b>熵增：时间为什么只往前流</b><span>赛道 0 · 60s · swiss</span></div>
+      <div class="tpl"><b>贝叶斯：用一个数字改写直觉</b><span>赛道 0 · 45s · blueprint</span></div>
+      <div class="tpl"><b>模型什么时候突然变聪明</b><span>赛道 1.6 · 30s · crt</span></div>
+
+      <div class="sech" style="margin-top:2px">七槽位参数</div>
+      <div class="field"><label>风格 look</label><div class="ctl">Swiss Dynamic Type <em>▾</em></div></div>
+      <div class="field"><label>配色</label><div class="seg"><i data-on="true">科技暗色</i><i>终端绿</i><i>霓虹紫</i><i>极简白</i></div></div>
+      <div class="field"><label>时长 / 画幅</label><div class="ctl">20 s · 16:9 <em>▾</em></div></div>
+      <div class="field"><label>节奏 BPM</label><div class="ctl">120 <em>卡点开</em></div></div>
+      <div class="field"><label>字幕</label><div class="seg"><i>关</i><i>中文</i><i>英文</i><i data-on="true">双语</i></div></div>
+      <div class="field"><label>分镜顺序</label><div class="seg"><i data-on="true">钩子优先</i><i>过程优先</i><i>结果前置</i></div></div>
+    </div>
+
+    <!-- center -->
+    <div class="col" style="gap:11px">
+      <div class="preview">
+        <div class="pv">
+          <div class="tag">SWISS / 科技暗色</div>
+          <div class="kick">钩子 · 先给结论</div>
+          <div class="big">为什么聪明的人<br>会一起变笨</div>
+          <div class="ul"></div>
+          <div class="cap">为什么聪明的人会一起变笨<small>WHY SMART PEOPLE THINK ALIKE</small></div>
+        </div>
+        <div class="pbar">
+          <span>▶</span>
+          <div class="track"><i></i><u></u></div>
+          <span>00:02 / 00:20</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:6px">
+        <span class="btn sm">预览一帧</span>
+        <span class="btn sm">← 上一帧</span>
+        <span class="btn sm">下一帧 →</span>
+        <span class="spacer" style="flex:1"></span>
+        <span class="btn sm">重生成分镜</span>
+      </div>
+
+      <div class="sech" style="margin-top:3px">分镜表 · 3 镜 / 600 帧</div>
+      <div class="shots">
+        <div class="shot" data-on="true"><span>01</span><b>hook</b><span>钩子 · 先给结论</span><span>0 – 180</span></div>
+        <div class="shot"><span>02</span><b>process</b><span>一件事，拆成三步讲 · 4 步</span><span>180 – 480</span></div>
+        <div class="shot"><span>03</span><b>cta</b><span>记住这一句就够了。</span><span>480 – 600</span></div>
+      </div>
+      <div class="shot" style="border:1px dashed var(--line2);border-radius:7px;color:#9aa1ad">
+        <span></span><span style="grid-column:2/5">每镜起点都卡在 1/拍 的整数倍上：拍长 15 帧 @120BPM</span>
+      </div>
+    </div>
+
+    <!-- right -->
+    <div class="col">
+      <div class="sech">AI 助手 · explainer.run</div>
+      <div class="chat">
+        <div class="msg">这是「AiBench Explainer」的专属助手。它只懂这套动效语言：瑞士排版 / 蓝图 / CRT，横版，双语硬字幕。</div>
+        <div class="msg me">把「熵」讲得再狠一点，开头不要铺垫</div>
+        <div class="msg">改好了：钩子镜换成一句判断句，删掉铺垫。<br>分镜 3 镜 / 600 帧不变，只换文案。</div>
+      </div>
+      <div class="quicks">
+        <i>换 look</i><i>压到 15s</i><i>字幕只留中文</i><i>重排卡点</i>
+      </div>
+      <div class="input"><span>说说你要改什么…</span><span class="send">↑</span></div>
+
+      <div class="exportbox" style="margin-top:4px">
+        <div class="sech">导出</div>
+        <div class="row"><span class="btn sm">预览帧 PNG</span><span class="btn sm">竖版 9:16</span></div>
+        <div class="row"><span class="btn sm primary" style="flex:1;text-align:center">渲染 MP4</span></div>
+        <div style="font-size:10px;color:#9aa1ad">上次渲染 2 分 10 秒 · 503 KB · h264 1920×1080</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

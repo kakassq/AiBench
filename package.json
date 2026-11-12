@@ -1,0 +1,31 @@
+{
+  "name": "aibench-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AiBench — local-first parametric video studio panel for DeepSeek Harness.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "workspaces": [
+    "packages/aibench",
+    "packages/aibench-render"
+  ],
+  "scripts": {
+    "build": "node packages/aibench-render/scripts/build-storyboard.mjs",
+    "pack:all": "node packages/aibench-render/scripts/build-storyboard.mjs && pnpm --dir packages/aibench-render pack --pack-destination ../../dist-packages && pnpm --dir packages/aibench pack --pack-destination ../../dist-packages",
+    "publish:npm": "node scripts/publish-npm.mjs",
+    "publish:github": "node scripts/publish-github.mjs",
+    "probe": "node scripts/probe.mjs",
+    "check:timeline": "node scripts/check-timeline.mjs",
+    "check:sections": "node scripts/check-sections.mjs",
+    "check:templates": "node scripts/check-templates.mjs",
+    "check:director": "node scripts/check-director.mjs",
+    "check:skills": "node scripts/check-skills.mjs",
+    "check:build": "node scripts/check-storyboard-build.mjs",
+    "check:installed": "node scripts/check-installed-layout.mjs",
+    "check:icon": "node scripts/make-icon-png.mjs",
+    "check": "node scripts/check-timeline.mjs && node scripts/check-sections.mjs && node scripts/check-templates.mjs && node scripts/check-director.mjs && node scripts/check-skills.mjs && node scripts/check-storyboard-build.mjs && node scripts/check-installed-layout.mjs && node scripts/make-icon-png.mjs && node scripts/probe.mjs"
+  }
+}

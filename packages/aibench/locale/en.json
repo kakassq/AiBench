@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "AiBench studio",
+    "description": "Local-first parametric video studio. No AI image or video generation: every frame is drawn by code, reproducible and free to render."
+  }
+}

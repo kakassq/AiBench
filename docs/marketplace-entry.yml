@@ -1,0 +1,33 @@
+# Awesome DSH Plugin — catalog entry for AiBench
+#
+# Submit this as a pull request to https://github.com/awesome-dsh-plugin/awesome-dsh-plugin
+#
+#   file path:  data/plugins/<owner>__<repo>.yml
+#   file name:  with the monorepo subpackage suffix because the installable
+#               package is packages/aibench, not the repo root:
+#                 <owner>__AiBench--packages-aibench.yml
+#
+# The catalog README is generated from these files by a script — never edit the
+# README by hand.
+#
+# Fields, per the repo's contributing.md:
+#   url          https URL of the repo, or of the subdirectory for a monorepo
+#   name         owner/repo, or owner/repo#subname for a monorepo subpackage
+#   category     one of: agi ui usage theme model identity session memory tools
+#                wsl browser vision voice docs skill workflow git notify dev
+#                security remote market fun
+#   description  en + zh, one line each, ending with a period. Quote the value
+#                if it contains ": " (colon + space).
+#   icon         optional, raw.githubusercontent URL
+#
+# The catalog rejects a plugin whose package.json declares only dsh.client —
+# dsh.bundle is mandatory for installability. packages/aibench/package.json
+# declares both.
+
+url: https://github.com/<OWNER>/AiBench
+name: <OWNER>/AiBench#packages/aibench
+category: ui
+description:
+  en: Local-first parametric video studio. Renders motion graphics with code — no AI image or video generation, reproducible frame for frame.
+  zh: 本地渲染的参数化视频创作台。画面全由代码逐帧绘制，不生图不生视频，同参数可复现，零渲染成本。
+icon: https://raw.githubusercontent.com/<OWNER>/AiBench/main/assets/icon-180.png

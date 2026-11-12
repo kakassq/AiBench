@@ -1,0 +1,36 @@
+{
+  "id": "data.growth",
+  "title": "增长曲线：那张图说了什么",
+  "track": "1.3",
+  "brief": "一条曲线从平缓到陡峭，拐点在哪，拐点之后意味着什么",
+  "durationSec": 20,
+  "aspect": "16:9",
+  "style": {
+    "look": "swiss-dynamic-type",
+    "palette": "极简白",
+    "tokens": ["swiss-dynamic-type", "blueprint"],
+    "motion": "line-grow",
+    "rhythm": 110,
+    "font": "sans"
+  },
+  "audio": {
+    "bgm": { "bpm": 110, "mood": "confident" },
+    "sfxSet": ["reveal", "tick"],
+    "voice": { "mode": "none", "lang": "zh" },
+    "subtitles": { "kind": "bilingual" }
+  },
+  "beatMap": {
+    "rule": "曲线生长与数值变化同步",
+    "notes": ["起点第 1 拍", "拐点单独占一拍", "终点定格在最后一拍"]
+  },
+  "defaults": {
+    "type": 2,
+    "style": 0,
+    "palette": 3,
+    "flow": 0,
+    "durationSec": 20,
+    "beatBpm": 110,
+    "subtitle": "bilingual",
+    "aspect": "16:9"
+  }
+}

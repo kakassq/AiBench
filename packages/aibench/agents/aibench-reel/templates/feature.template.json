@@ -1,0 +1,36 @@
+{
+  "id": "reel.feature",
+  "title": "三点卖点：竖版快剪",
+  "track": "1.1",
+  "brief": "三个卖点各拍一次，每格 2 秒，字幕不超过 4 个字",
+  "durationSec": 18,
+  "aspect": "9:16",
+  "style": {
+    "look": "halftone-dossier",
+    "palette": "科技暗色",
+    "tokens": ["halftone-dossier", "swiss-dynamic-type"],
+    "motion": "cut-on-beat",
+    "rhythm": 128,
+    "font": "sans"
+  },
+  "audio": {
+    "bgm": { "bpm": 128, "mood": "energetic" },
+    "sfxSet": ["tick", "whoosh"],
+    "voice": { "mode": "none", "lang": "zh" },
+    "subtitles": { "kind": "zh" }
+  },
+  "beatMap": {
+    "rule": "每个卖点占 4 拍，切点必须在拍上",
+    "notes": ["卖点一片头 0–4 拍", "卖点二 4–8 拍", "卖点三 8–12 拍", "落版 12 拍后"]
+  },
+  "defaults": {
+    "type": 1,
+    "style": 3,
+    "palette": 0,
+    "flow": 0,
+    "durationSec": 18,
+    "beatBpm": 128,
+    "subtitle": "zh",
+    "aspect": "9:16"
+  }
+}

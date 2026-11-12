@@ -1,0 +1,36 @@
+{
+  "id": "reel.mark",
+  "title": "字标起手：三拍落版",
+  "track": "1.4",
+  "brief": "AIBENCH 字标在鼓点上落位，几何块展开，最后一拍落版",
+  "durationSec": 12,
+  "aspect": "9:16",
+  "style": {
+    "look": "one-line",
+    "palette": "极简白",
+    "tokens": ["one-line", "swiss-dynamic-type"],
+    "motion": "cut-on-beat",
+    "rhythm": 120,
+    "font": "sans"
+  },
+  "audio": {
+    "bgm": { "bpm": 120, "mood": "confident" },
+    "sfxSet": ["tick", "reveal"],
+    "voice": { "mode": "none", "lang": "zh" },
+    "subtitles": { "kind": "zh" }
+  },
+  "beatMap": {
+    "rule": "每个元素出现都卡在整拍上",
+    "notes": ["第 1 拍字标出现", "第 2 拍几何线展开", "第 3 拍落版"]
+  },
+  "defaults": {
+    "type": 1,
+    "style": 4,
+    "palette": 3,
+    "flow": 0,
+    "durationSec": 12,
+    "beatBpm": 120,
+    "subtitle": "zh",
+    "aspect": "9:16"
+  }
+}

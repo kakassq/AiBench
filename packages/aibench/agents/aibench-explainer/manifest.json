@@ -1,0 +1,60 @@
+{
+  "id": "aibench-explainer",
+  "name": "AiBench Explainer",
+  "version": "0.1.0",
+  "description": "硬核概念科普：瑞士动态排版、蓝图推演、终端 CRT。横版 16:9，双语硬字幕，不需要旁白。",
+  "tracks": ["0", "1.6"],
+  "license": "MIT",
+  "builtin": true,
+  "engines": {
+    "aibench": ">=0.1.0",
+    "node": ">=22.19"
+  },
+  "capabilities": {
+    "render": true,
+    "voice": false,
+    "subtitles": true,
+    "bilingual": true
+  },
+  "defaults": {
+    "type": 0,
+    "style": 0,
+    "palette": 0,
+    "flow": 0,
+    "durationSec": 20,
+    "beatBpm": 120,
+    "subtitle": "bilingual",
+    "aspect": "16:9"
+  },
+  "skills": [
+    {
+      "id": "explainer.run",
+      "name": "explainer-run",
+      "file": "skills/explainer.run/SKILL.md"
+    }
+  ],
+  "templates": [
+    {
+      "id": "explainer.entropy",
+      "file": "templates/entropy.template.json",
+      "title": "熵增：时间为什么只往前流",
+      "track": "0"
+    },
+    {
+      "id": "explainer.bayes",
+      "file": "templates/bayes.template.json",
+      "title": "贝叶斯：用一个数字改写直觉",
+      "track": "0"
+    },
+    {
+      "id": "explainer.threshold",
+      "file": "templates/threshold.template.json",
+      "title": "模型什么时候突然变聪明",
+      "track": "1.6"
+    }
+  ],
+  "runtime": {
+    "shared": ["remotion@4", "react@19"],
+    "requires": []
+  }
+}

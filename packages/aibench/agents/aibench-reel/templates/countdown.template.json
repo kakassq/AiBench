@@ -1,0 +1,36 @@
+{
+  "id": "reel.countdown",
+  "title": "卡点倒数：一秒一格",
+  "track": "1.5",
+  "brief": "3 2 1 三个数字各占一拍，最后一拍砸出结论",
+  "durationSec": 10,
+  "aspect": "9:16",
+  "style": {
+    "look": "terminal-crt",
+    "palette": "终端绿",
+    "tokens": ["terminal-crt"],
+    "motion": "cut-on-beat",
+    "rhythm": 120,
+    "font": "mono"
+  },
+  "audio": {
+    "bgm": { "bpm": 120, "mood": "tense" },
+    "sfxSet": ["tick", "whoosh"],
+    "voice": { "mode": "none", "lang": "zh" },
+    "subtitles": { "kind": "zh" }
+  },
+  "beatMap": {
+    "rule": "每个数字严格占一拍",
+    "notes": ["3 在第 1 拍", "2 在第 2 拍", "1 在第 3 拍", "结论在第 4 拍"]
+  },
+  "defaults": {
+    "type": 1,
+    "style": 2,
+    "palette": 1,
+    "flow": 0,
+    "durationSec": 10,
+    "beatBpm": 120,
+    "subtitle": "zh",
+    "aspect": "9:16"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "explainer.threshold",
+  "title": "模型什么时候突然变聪明",
+  "track": "1.6",
+  "brief": "涌现能力不是慢慢变强，而是在某个规模点之后突然出现——这条曲线是阶跃的",
+  "durationSec": 15,
+  "aspect": "16:9",
+  "style": {
+    "look": "terminal-crt",
+    "palette": "终端绿",
+    "tokens": ["terminal-crt"],
+    "motion": "cut-on-beat",
+    "rhythm": 120,
+    "font": "mono"
+  },
+  "audio": {
+    "bgm": { "bpm": 120, "mood": "tense" },
+    "sfxSet": ["tick", "whoosh"],
+    "voice": { "mode": "none", "lang": "zh" },
+    "subtitles": { "kind": "bilingual" }
+  },
+  "beatMap": {
+    "rule": "阶跃点必须落在拍上",
+    "notes": ["平缓段 3 拍", "阶跃瞬间单独一拍", "之后结论落版"]
+  },
+  "defaults": {
+    "type": 0,
+    "style": 2,
+    "palette": 1,
+    "flow": 0,
+    "durationSec": 15,
+    "beatBpm": 120,
+    "subtitle": "bilingual",
+    "aspect": "16:9"
+  }
+}

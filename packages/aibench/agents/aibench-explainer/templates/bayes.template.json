@@ -1,0 +1,36 @@
+{
+  "id": "explainer.bayes",
+  "title": "贝叶斯：用一个数字改写直觉",
+  "track": "0",
+  "brief": "贝叶斯公式并不神秘，它只是把「先验 + 新证据 = 后验」这件事写成了一个分数",
+  "durationSec": 25,
+  "aspect": "16:9",
+  "style": {
+    "look": "blueprint",
+    "palette": "科技暗色",
+    "tokens": ["blueprint", "swiss-dynamic-type"],
+    "motion": "cut-on-beat",
+    "rhythm": 100,
+    "font": "mono"
+  },
+  "audio": {
+    "bgm": { "bpm": 100, "mood": "focused" },
+    "sfxSet": ["tick", "reveal"],
+    "voice": { "mode": "none", "lang": "zh" },
+    "subtitles": { "kind": "bilingual" }
+  },
+  "beatMap": {
+    "rule": "每次公式改写卡在拍上",
+    "notes": ["先验出现卡第 1 拍", "分子分母分开出现", "后验定格在第 20 拍"]
+  },
+  "defaults": {
+    "type": 0,
+    "style": 1,
+    "palette": 0,
+    "flow": 0,
+    "durationSec": 25,
+    "beatBpm": 100,
+    "subtitle": "bilingual",
+    "aspect": "16:9"
+  }
+}
