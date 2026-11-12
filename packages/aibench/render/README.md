@@ -1,17 +1,19 @@
-# aibench-render
+# aibench/render — AiBench 渲染引擎
 
 AiBench 的渲染引擎：一个 Remotion 工程，把「分镜 JSON + 参数」逐帧画成视频。
 
 **核心承诺**：画面完全由代码绘制，不调用任何生图 / 生视频模型。同一份 brief + 同一组参数 → 同一个 mp4，帧级可复现。
 
-## 为什么单独一个包
+## 为什么在插件包内部
 
 `dsh-aibench`（DSH 面板）需要两样东西同时成立：
 
 1. 一个**能被 Remotion CLI 渲染**的工程（`src/Root.tsx` 注册 Composition，CLI 需要真实的 `node_modules`）；
 2. 一个**能被 Host 直接 import 的分镜规划器**（面板的分镜表必须与渲染出的帧完全一致，不能各算一套）。
 
-这两件事的依赖需求不同，所以拆成独立包：面板通过 `aibench-render` 依赖拿到它，两个布局（源码 checkout / npm 安装）都能用。
+这两件事曾经拆成两个 npm 包（`dsh-aibench` + `aibench-render`），但**放弃了**：npm 的 granular token 无法创建新包（返回 `E_STAGE_REQUIRED`），两包方案会让插件对任何只有 granular token 的人都装不上。现在引擎就在 `packages/aibench/render/`，随插件一起发布；Remotion 本身是插件的普通依赖。
+
+`render/package.json` 保留 `private: true`，它是工作区内的工程，不是可独立安装的包。
 
 ## 目录
 
