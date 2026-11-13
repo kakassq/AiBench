@@ -25,6 +25,10 @@ const gates = [
   // Renders 12 frames through the real CLI and measures them: a layout change
   // that only looks right in one aspect ratio fails here.
   ['check-layout', ['scripts/check-layout.mjs']],
+  // Stages the Remotion compositor and asks its ffmpeg to encode an mp4. This is
+  // the only gate that would catch a Low-integrity label above the package, where
+  // stills keep working and every mp4 render dies on `write EPIPE`.
+  ['check-binaries', ['scripts/check-binaries.mjs']],
   ['check-installed-layout', ['scripts/check-installed-layout.mjs']],
   ['make-icon-png', ['scripts/make-icon-png.mjs']],
   // No explicit origin: `probe.mjs` discovers the port the desktop app is

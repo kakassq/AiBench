@@ -82,7 +82,7 @@ Agent 页下方还有**最近项目**列表，点一条直接回到那个项目�
 | `safe-area.mjs` | 到四边最近的 strong-ink 距离 | `min(w,h) × 0.012`，低于即 BLEED |
 | `check-layout.mjs` | 3 画幅 × 4 帧，真 Remotion CLI 渲出来逐帧断言 | read ≥ 0.9%、6 带中 ≥4 带有墨、四边 ≥ 1.2% |
 
-`check-layout.mjs` 是第 15 道闸门：它跑真 CLI，所以「只在 16:9 好看、竖版塌掉」的版式改动会当场失败。
+`check-layout.mjs` 跑真 CLI，所以「只在 16:9 好看、竖版塌掉」的版式改动会当场失败。
 
 密度靠**常驻骨架**补齐，不靠把字号调大：四角定位括号、顶栏（`AIBENCH` / 渐隐横线 / `NN / NN`）、底部进度条（带镜头刻度），加上每种镜头一个右栏承载物——`hook` 给 `SpecPanel`（标题/时长/镜头数/画幅/节拍），有 `steps` 的 `process` 给 `EvidencePanel`（逐条淡入的中英对照），`cta` 给 `RecapPanel`（按顺序重述过程镜，最后一条加粗）。收尾画面如果只重复一句结论，观众什么也带不走。
 
@@ -148,7 +148,7 @@ plugin_manager action=install_bundle target=<绝对路径>/packages/aibench
 
 ### 发布前会跑什么
 
-`pnpm check` 串跑全部**十五道**闸门（`scripts/check-all.mjs`），其中几道专门守着「装得上但跑不起来」和「跑得起来但不好看」这类问题：
+`pnpm check` 串跑全部**十六道**闸门（`scripts/check-all.mjs`），其中几道专门守着「装得上但跑不起来」和「跑得起来但不好看」这类问题：
 
 - `check-storyboard-build.mjs` —— 预编译的 `dist/storyboard.mjs` 与 `src/storyboard.ts` 必须产出逐字节相同的分镜。Node 拒绝为 `node_modules` 下的文件剥离类型，所以发布包里带的是预编译产物；忘了重新编译会直接失败。
 - `check-installed-layout.mjs` —— 把 tgz 解到 `node_modules/dsh-aibench/` 下（模拟 npm 安装后的真实布局），验证插件能 import、渲染引擎能解析到包内的 `render/`、分镜规划器能跑。源码 checkout 里用符号链接，跑通不代表装得上。
@@ -158,6 +158,7 @@ plugin_manager action=install_bundle target=<绝对路径>/packages/aibench
 - `check-client-render.mjs` —— 用真 React + `renderToStaticMarkup` 把面板渲染一遍（agents / forge / tasks / settings 四页）。React 在渲染期抛的错（hook 顺序、未定义变量、`blueprint.subtitles.map` 这类首屏空数据）在这里变成失败，而不是浏览器里的白屏。
 - `check-script.mjs` —— 脚本层的时序不变量：脚本决定时长、权重分配后 `sum === totalFrames`、装不下的脚本被截断而非压缩成 6 帧、`sanitizeScript()` 的每条拒绝路径。
 - `check-layout.mjs` —— **渲真帧量密度**。3 画幅 × 4 帧，断言四边安全区、6 条横带有墨、read ink ≥ 0.9%。把「75% 空白」这类主观评语变成会失败的测试。
+- `check-binaries.mjs` —— 暂存 Remotion 的 compositor 并**让它的 ffmpeg 真编一个 mp4**。这是唯一能发现「Windows 完整性标签导致导出必失败」的闸门：那种情况下 `still` 一直正常、`render.available` 一直是 `true`，只有导出挂在 `write EPIPE` 上。其余十五道要么不启动 ffmpeg，要么用 Remotion 自己的 compositor，全都看不见。
 
 这几道闸门会 `import` Host 半部并调用真实的写路由（建项目、装 Agent、写草稿），所以每一个都在 Host 之前 `import './sandbox-data.mjs'`，把 `AIBENCH_DATA_DIR` 指向 `.tmp/gate-data/<脚本名>/` 并先清空它。没有这一步，每跑一次闸门就会往你自己的项目列表里塞一条 `forge e2e` —— 这个 bug 真发生过，`scripts/cleanup-gate-projects.mjs` 就是用来收拾它的（只删 `agentId === 'agent-e2e'` 且标题为 `forge e2e` 的项目）。
 
@@ -182,6 +183,7 @@ scripts/check-skills.mjs    SKILL.md frontmatter、技能注册与默认技能�
 scripts/check-templates.mjs 模板描述符 → 渲染参数映射层的回归
 scripts/check-storyboard-build.mjs  预编译产物与源码不漂移（108 组分镜逐条比对）
 scripts/check-layout.mjs    真渲 12 帧量画面密度 / 安全区 / 可读墨量
+scripts/check-binaries.mjs  暂存 compositor 并真编一个 mp4（守 Windows 完整性标签故障）
 scripts/check-installed-layout.mjs  从 npm 安装后的目录布局是否真能跑
 scripts/check-forge.mjs     Forge 脚手架 / 校验器 / 安装闸门回归
 scripts/check-routes.mjs    路由级回归（假 webServer 驱动真 req）
@@ -199,6 +201,7 @@ scripts/publish-github.mjs   Git Data API 推仓库（无需 git）
 scripts/marketplace-pr.mjs   向 awesome-dsh-plugin 提收录 PR（无需 git）
 scripts/sandbox-data.mjs     让闸门跑在一次性数据目录里（Host 必须先于它 import）
 scripts/cleanup-gate-projects.mjs  清掉旧版闸门泄漏到真实目录的 fixture 项目
+scripts/await-render.mjs     排队渲一条并等它结束（诊断/验收用）
 ```
 
 ## 开发
@@ -207,7 +210,7 @@ scripts/cleanup-gate-projects.mjs  清掉旧版闸门泄漏到真实目录的 fi
 pnpm install
 pnpm --dir packages/aibench/render studio   # 打开 Remotion Studio 调画面
 node scripts/probe.mjs                # 接口回归
-pnpm check                            # 十五道闸门全跑
+pnpm check                            # 十六道闸门全跑
 ```
 
 改了 `packages/aibench/render/src/storyboard.ts` 之后**必须重新编译**，否则 Host 读到的还是旧规划器：

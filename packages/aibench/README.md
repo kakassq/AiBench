@@ -272,6 +272,21 @@ node_modules/.pnpm/dsh-aibench@<hash>/node_modules/
 
 `scripts/check-installed-layout.mjs` 守着这件事：它用真实的 tgz 安装布局验证，**依赖存在但解析不到就判失败**（不静默 SKIP）——那正是这个 bug 的形状。
 
+### Windows：`still` 能出、`render` 报 `write EPIPE`
+
+如果你的导出总是失败、日志末尾只有 `Error: write EPIPE` 或 `write EOF`，那不是磁盘满、也不是杀毒软件，而是 **NTFS 完整性标签（Mandatory Integrity Level）**。
+
+机制：一个进程的完整性级别取自它启动的**可执行文件**。Remotion 渲 mp4 时会拉起自己的 `ffmpeg.exe`（来自 `@remotion/compositor-*`）。Windows 的 Mandatory Integrity Control 有一条 **No-Write-Up** 规则：**Low 完整性进程不能写 Medium 完整性对象**。所以只要插件所在路径上有 `Mandatory Label\Low Mandatory Level` 这类 ACE（工作区目录很常见，尤其是被沙箱化过的仓库根），ffmpeg 就继承 Low，而它要写的临时目录是 Medium —— 于是每次打开输出文件都是 `Permission denied`（退出码 `-13`）。
+
+这两件事让它特别难查：
+
+- **`still` 照常成功**。渲单帧只写 PNG，从不启动 ffmpeg。所以从面板看，引擎「一半能用」，`render.available: true`，彻底像一个随机故障。
+- **你看到的错误是下游症状**。Node 往已死的 ffmpeg 写帧，收到的是 `EPIPE`；真正的原因行（`Error opening output …: Permission denied`）在 stderr 前面几百行，只有 `--log=verbose` 才看得见。
+
+AiBench 的处理方式是**不改你的系统权限**：渲染前把 compositor 那 22 个文件（28.4 MB）复制到数据目录下的 `bin/compositor`（普通 Medium 位置），再用 `--binaries-directory` 让 CLI 从那里启动 ffmpeg。复制过去的文件取目标目录的标签，这正是它生效的原因。这份副本**会先用一次真实编码验证**——继承了 Low 标签的副本在磁盘上看不出区别，所以「复制成功」不算数，「这个 ffmpeg 能不能写出 mp4」才算数。
+
+`render.binaries` 报告当前使用的目录（未暂存过为 `null`）。`scripts/check-binaries.mjs` 守着整条链路；失败信息也会直接说明这一点，而不是只丢一句 EPIPE 给你。
+
 ## 边界
 
 - 不做 AI 生图 / 生视频，不调用任何图像或视频生成 API

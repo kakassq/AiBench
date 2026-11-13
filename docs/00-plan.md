@@ -97,7 +97,7 @@ D:\AI\Vibe\AiBench\
 │     └─ scripts\{build-storyboard.mjs,generate-audio.mjs}
 ├─ assets\                          # icon-180.png / icon-512.png（从 icon.svg 栅格化）
 ├─ artifacts\                       # 验收用的成片与静帧（不进 git）
-└─ scripts\                         # 15 道闸门 + 发布 + 测量工具
+└─ scripts\                         # 16 道闸门 + 发布 + 测量工具
 ```
 
 **和原方案的三处关键偏差：**
@@ -281,12 +281,13 @@ cta     记住这一句就够了。  ← 模板硬编码
 | `scripts/safe-area.mjs` | 到四边最近的 strong-ink 距离 | `min(w,h) × 0.012`，低于即 BLEED 并 exit 1 |
 | `scripts/check-layout.mjs` | **3 画幅 × 4 帧，真 Remotion CLI 渲出来逐帧断言** | read ≥ 0.9%、6 带中 ≥4 带有墨、四边 ≥ 1.2% |
 
-`check-layout.mjs` 是第 15 道闸门，进 `pnpm check`。它跑真 CLI 而不是模拟，所以「只在 16:9 好看、竖版塌掉」这类改动会当场失败。
+`check-layout.mjs` 进场就是真渲，所以「只在 16:9 好看、竖版塌掉」这类改动会当场失败。
 
 **测量本身踩过两个坑，都值得记：**
 
 1. 主色统计最初用 4-bit 桶（`r >> 4`，桶底 `<< 4`），每个通道最多 15 级误差 —— 平坦背景被判成 100% ink，测量结果毫无意义。改成精确颜色 `key = (r<<16)|(g<<8)|b` 才准。
-2. `ffmpeg` 在本机**完全不能创建文件**（`Error opening output … Permission denied`，OS temp 和 workspace 目录都失败）。所有取帧/取 raw 必须走 `-f rawvideo -pix_fmt rgb24 pipe:1` + `execFileSync(..., {maxBuffer: 64~128MB})`，需要文件时再由 Node 写。
+2. `ffmpeg` 在本机**不能创建文件**（`Error opening output … Permission denied`，OS temp 和 workspace 目录都失败），所以取帧/取 raw 一律走 `-f rawvideo -pix_fmt rgb24 pipe:1` + `execFileSync(..., {maxBuffer: 64~128MB})`，需要文件时再由 Node 写。
+   **这条当时的解释是错的。** 我把它记成「ffmpeg 的限制」并当成测量技巧绕过去了，实际原因是 §4.9 那个完整性标签问题。代价是：同一个根因后来在 `render` 上以完全不同的面貌（`write EPIPE`）爆出来时，我又从头排除了一遍磁盘满和杀软，因为「ffmpeg 写不了文件」已经被当成已知事实接受了。**一个绕过去的 workaround 会掩盖同源的 bug** —— 这正是为什么它最终被修成产品代码，而不是继续记成「环境特性」。
 
 **版式怎么补的**（不是把字号调大）：`AiClip.tsx` 的 `metricsFor(theme)` 成为单一真源，`wide = !theme.vertical` 决定 16:9 走两栏（左陈述 46% + 右承载物）还是竖版单列堆叠。每个镜头都画常驻骨架（四角定位括号 / 顶栏 `AIBENCH … NN/NN` / 底部进度条带镜头刻度），右栏按镜头种类换承载物：
 
@@ -295,6 +296,34 @@ cta     记住这一句就够了。  ← 模板硬编码
 - `cta` → `RecapPanel`：按顺序重述前面各条过程镜，最后一条加粗
 
 最后一条是有意的设计判断：**只重复一句结论的收尾画面，观众什么也带不走**。`RecapPanel` 是「观众会截图分享的那一页」。
+
+### 4.9 渲染失败：一次真实事故的完整解剖
+
+面板上出现过一条 `failed` 项目（`长城不是一道墙`，25 秒，`data.three-numbers`）。它的失败信息只有：
+
+```
+Error: write EPIPE
+  at Object.writeFrame (.../@remotion/renderer/dist/prespawn-ffmpeg.js:243:71)
+errno: -4047, code: 'EPIPE', syscall: 'write'
+```
+
+值得记下来的是**这条信息把所有人指向了错的三个方向**：磁盘满（`errno -4047` 看着像资源耗尽）、项目数据坏、Remotion 版本不兼容。实际都不是 —— `still` 渲得出，模型调用全部成功，分镜内容完全合法，C 盘剩 86 GB。
+
+**根因**：NTFS **完整性标签**。`D:\AI\Vibe` 带 `Mandatory Label\Low Mandatory Level:(OI)(CI)(NW)`，一路继承到 `render/node_modules/.../compositor-win32-x64-msvc/ffmpeg.exe`。进程的完整性级别由**可执行文件**决定，于是 ffmpeg 以 Low 运行；Windows 的 Mandatory Integrity Control 有 **No-Write-Up**：Low 进程不能写 Medium 对象。而 Remotion 让 ffmpeg 写到 `%TEMP%\react-motion-render*/pre-encode.mp4` —— Medium。所以 `Error opening output …: Permission denied`（退出码 `-13`），Node 写帧收到 `EPIPE`。
+
+**为什么难查**：
+
+- `still` 只写 PNG、从不启动 ffmpeg，所以「引擎一半能用」，`render.available: true`，看起来像随机故障。
+- 真因行在 stderr 前面几百行，默认日志级别看不到。
+- 错误码 `EPIPE`/`EACCES` 都不指权限，只有 `ENOSPC` 才是磁盘满。
+
+**验证方式**（不是推理，是双向切换）：把 compositor 目录 `/setintegritylevel '(OI)(CI)Medium'` → 同一条命令 exit 0 出片；改回 `Low` → 立刻复现 `Permission denied`。另外单独证明了决定因素是**目标目录**的标签：新建一个 Medium 目录，ffmpeg 写入失败；对该目录设 Low 后同一条命令成功。
+
+**修法（落地成产品代码，不是让用户改系统权限）**：`binaryDirectory()` 把这 22 个文件（28.4 MB）复制到 `<data>/bin/compositor`，渲染时传 `--binaries-directory`。复制品取目标目录的标签，所以生效。关键是**副本要先用一次真实编码验证**——继承了 Low 的副本在磁盘上与正常的毫无区别，所以「复制成功」不算数，「这个 ffmpeg 能写出 mp4」才算数。探测本身也踩了两个坑：compositor 里的 ffmpeg 是精简构建，**没有 filter graph、没有 rawvideo demuxer**，`-f lavfi`/`-f rawvideo` 都会把一个好二进制判成坏的；最终用 `-f image2pipe -vcodec png`，也就是 Remotion 真实渲染用的那条管道形状。
+
+`scripts/check-binaries.mjs` 是第 16 道闸门。它存在的理由：**其他 15 道闸门全都发现不了这个 bug** —— 要么不启动 ffmpeg，要么用 Remotion 自己的 compositor。
+
+顺带修正了失败信息：`explainRenderFailure()` 在指纹明确时补上诊断，其余原样透传（错的提示比没有提示更糟）。
 
 ---
 
@@ -500,6 +529,7 @@ icon: https://cdn.jsdelivr.net/gh/<you>/AiBench@main/packages/aibench/icon.svg
 | **`pnpm` 的依赖布局和本地符号链接不一样** | 装得好好的环境里渲染引擎「找不到」，`503 render_unavailable`。本地开发**永远发现不了** | `resolveRenderCli()` 试四个候选路径；`check-installed-layout.mjs` 用真实 tgz 安装布局验证 |
 | **画面稀疏但所有测试都绿** | 出片成功、时长正确、字幕正确，但评审判为「75% 空白、不可发布」 | 三个测量脚本 + `check-layout.mjs` 进闸门（见 4.8） |
 | **回归闸门把 fixture 写进用户真实数据目录** | 每跑一次 `forge-e2e.mjs` 就往用户 Studio 里多一条 `forge e2e` 项目，攒到 13 条才发现 | `AIBENCH_DATA_DIR` 可覆盖 + 每个写数据的闸门先 import `scripts/sandbox-data.mjs`；`cleanup-gate-projects.mjs` 收拾历史遗留（见 PUBLISHING 坑 5） |
+| **NTFS 完整性标签让 ffmpeg 写不了 mp4** | `still` 照常出图、`render.available: true`，但每次导出都 `write EPIPE`，项目状态变 `failed`。错误信息指向磁盘/项目/版本，全是错的 | 暂存 compositor 到 Medium 目录 + `--binaries-directory`，副本用真实编码验证（见 4.9）；`check-binaries.mjs` 进闸门 |
 
 ---
 
@@ -507,10 +537,11 @@ icon: https://cdn.jsdelivr.net/gh/<you>/AiBench@main/packages/aibench/icon.svg
 
 **已完成（S0–S4 除 npm 发布外全部）：**
 
-- 15 道闸门全绿（`pnpm check`），且全部跑在一次性沙箱目录里
+- **16 道**闸门全绿（`pnpm check`），且全部跑在一次性沙箱目录里
 - 内含 3 个内置 Agent / 9 个模板 / 5 栏导航 / Forge 造 Agent / SkillBridge / 脚本层 / 版式系统
 - 故宫 30 秒片：900 帧 / 1920×1080 / 30.000s / 3.76 MB，评审「balanced, finished, professional」
-- GitHub `kakassq/AiBench` 已上线（commit `2b4d9249`，166 文件）
+- 长城 25 秒片（原本 `failed`）修复后重渲成功：750 帧 / 1920×1080 / 25.000s / 2.58 MB，评审确认无损坏、可发布
+- GitHub `kakassq/AiBench` 已上线
 - DSH 插件市场收录 PR 已提：[#14967](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14967)
 
 **待办：**

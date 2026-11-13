@@ -162,7 +162,7 @@ node scripts/marketplace-pr.mjs --dry-run
 | `package.json` 必须声明 `dsh.bundle` | ✅ 已声明（只声明 `dsh.client` 会被拒） |
 | 仓库创建满 **1 天** | ✅ created `2026-11-12T09:33:38Z`，提交时已超过 1 天 |
 | 仓库有 `dsh-plugin` topic | ✅ `publish-github.mjs` 自动设（共 8 个 topics） |
-| 有真实可运行代码 | ✅ Host + Client 完整实现，15 道闸门，两道渲真帧 |
+| 有真实可运行代码 | ✅ Host + Client 完整实现，16 道闸门，两道渲真帧 |
 | 描述必须属实 | ✅ 每条断言都能对上代码（见下） |
 | 项目活跃维护 | ✅ 持续提交 |
 
@@ -182,7 +182,7 @@ node scripts/marketplace-pr.mjs --dry-run
 - `https://awesome-dsh-plugin.com/index.json` — 本机实测 **31.3s**，超过 DSH 的 15s 预算
 - `https://dshmarket.com/index.json` — 同上
 
-## 六个真实踩到的坑
+## 七个真实踩到的坑
 
 ### 坑 1：`node_modules` 下的 TypeScript 不能剥离类型
 
@@ -268,6 +268,33 @@ process.env.AIBENCH_DATA_DIR = SANDBOX
 
 历史遗留用 `node scripts/cleanup-gate-projects.mjs --dry-run` 先看，去掉 `--dry-run` 再删；
 它只碰 `agentId === 'agent-e2e'` 且标题为 `forge e2e` 的项目。
+
+### 坑 6：Windows 完整性标签让 ffmpeg 静默写不了 mp4
+
+这是唯一一个「面板看起来在正常工作」的故障，也是最贵的：**`still` 一直能出图，`render.available` 一直是 `true`，只有导出 mp4 会失败**，而且错误信息是 `Error: write EPIPE`。
+
+`D:\AI\Vibe` 带 `Mandatory Label\Low Mandatory Level:(OI)(CI)(NW)`，继承到 Remotion 自带的
+`compositor-win32-x64-msvc/ffmpeg.exe`。进程完整性级别由可执行文件决定 → ffmpeg 以 Low 跑；
+Windows Mandatory Integrity Control 的 **No-Write-Up** 禁止 Low 写 Medium，而 Remotion 让 ffmpeg
+写 `%TEMP%\react-motion-render*/pre-encode.mp4`（Medium）→ 打开输出文件时 `Permission denied`（退出码 `-13`），
+Node 往已退出的进程写帧 → 最终只剩 `EPIPE`。
+
+**排查时最容易走错的四件事**：
+
+1. `errno: -4047` 看起来像资源耗尽，但磁盘满的 errno 是 **`ENOSPC`**。`EPIPE`/`EACCES` 都不是。
+2. `still` 成功不代表引擎没问题 —— 渲单帧只写 PNG，**完全不启动 ffmpeg**。
+3. 真因行在 stderr 前面几百行，默认 `--log=error` 看不到，要 `--log=verbose` 才能看到完整 ffmpeg 命令行与它的 stderr。
+4. 「ffmpeg 在本机写不了文件」这个现象**几天前就出现过**了，当时被记成「环境特性」并用管道绕过（见 `docs/00-plan.md` §4.8）—— 同一个根因因此在 `render` 上又爆了一次，还得重走一遍排查。
+
+**修法**（不改用户系统权限）：把 compositor 复制到 `<data>/bin/compositor`（Medium 位置），渲染时传
+`--binaries-directory`。复制品取目标目录的标签，所以生效。
+
+两个必须注意的实现细节：
+
+- **副本必须用真实编码验证**。继承了 Low 标签的副本在磁盘上与正常的完全一样，「复制成功」证明不了任何事；要问的是「这个 ffmpeg 能不能写出 mp4」。`canEncodeMp4()` 在渲第一个镜头之前就回答这个问题，失败则退回默认路径（此时至少错误信息是诊断过的）。
+- **compositor 里的 ffmpeg 是精简构建**：没有 filter graph、没有 rawvideo demuxer。所以 `-f lavfi -i color=…` 和 `-f rawvideo` 都会把一个健康的二进制判成坏的。探测要用 Remotion 真实渲染的那条管道形状：`-f image2pipe -vcodec png -i -` → `libx264`。
+
+`scripts/check-binaries.mjs` 是第 16 道闸门。它存在的唯一理由：**其他 15 道全都发现不了这个 bug**。
 
 ## 发布后验证
 

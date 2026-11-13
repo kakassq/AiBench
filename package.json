@@ -24,6 +24,7 @@
     "check:director": "node scripts/check-director.mjs",
     "check:script": "node scripts/check-script.mjs",
     "check:layout": "node scripts/check-layout.mjs",
+    "check:binaries": "node scripts/check-binaries.mjs",
     "check:skills": "node scripts/check-skills.mjs",
     "check:forge": "node scripts/check-forge.mjs",
     "check:routes": "node scripts/check-routes.mjs",

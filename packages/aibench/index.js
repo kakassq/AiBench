@@ -11,19 +11,22 @@
  *  - no network on import, no side effects until apply() runs
  */
 
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
+import { deflateSync } from 'node:zlib'
 import {
   copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 // ---------------------------------------------------------------------------
@@ -127,6 +130,255 @@ const AGENTS_INDEX = join(DATA_DIR, 'agents.json')
 
 /** Built-in agent packages ship inside the bundle and get seeded on first run. */
 const BUILTIN_AGENTS_DIR = join(PLUGIN_DIR, 'agents')
+
+/**
+ * Staged Remotion binaries.
+ *
+ * Remotion launches its own `ffmpeg.exe` (from `@remotion/compositor-*`) to
+ * encode the frame stream into an mp4. On Windows a child process inherits the
+ * **Mandatory Integrity Level** of the executable it was started from, and the
+ * Mandatory Integrity Control rule "No-Write-Up" forbids a Low-IL process from
+ * writing to a Medium-IL object. So when this package sits under a directory
+ * that carries a Low label — common for an agent workspace, e.g. an inherited
+ * `Mandatory Label\Low Mandatory Level:(OI)(CI)(NW)` ACE on the repo root —
+ * every `render` dies the same way:
+ *
+ *   Error opening output C:\...\Temp\react-motion-renderXXXX\pre-encode.mp4:
+ *   Permission denied
+ *
+ * and Node only ever sees the downstream symptom, `Error: write EPIPE`, from
+ * the frame writer. `still` keeps working because a still never launches
+ * ffmpeg, so from the panel the engine looks half-broken for no visible reason,
+ * and the project is left `failed` with an error that names neither ffmpeg nor
+ * permissions.
+ *
+ * Telling the user to run `icacls /setintegritylevel` is not a fix: it mutates
+ * security state on their machine and has to be redone whenever the repo is
+ * re-created. Instead copy the compositor next to the data directory — a normal
+ * Medium-level location — and hand the CLI `--binaries-directory`, so ffmpeg is
+ * launched from there. The copied files take the destination directory's
+ * integrity label (an integrity ACE is not part of the file contents), which is
+ * exactly what makes it work. 28 MB, staged once, idempotent by size.
+ */
+const COMPOSITOR_PACKAGE = `compositor-${PLATFORM}-${process.arch === 'x64' ? 'x64-msvc' : process.arch}`
+
+/**
+ * Where the staged binaries go.
+ *
+ * Default is `<data>/bin/compositor`, which on a normal install is under the DSH
+ * profile — a Medium-integrity location, which is the whole point. `AIBENCH_BIN_DIR`
+ * overrides it, which the regression gate needs: it must prove the staging path
+ * works without writing into the user's data directory.
+ *
+ * Staging into a Low-labelled directory would inherit the same label and fix
+ * nothing, so `binaryDirectory()` verifies the copy is actually usable by asking
+ * ffmpeg to encode a probe file before trusting the directory for a real render.
+ */
+function stagedBinRoot() {
+  const override = process.env.AIBENCH_BIN_DIR
+  if (override && override.trim()) return override.trim()
+  return join(DATA_DIR, 'bin')
+}
+
+function stagedBinDir() {
+  return join(stagedBinRoot(), 'compositor')
+}
+
+let stagedBinDirCache
+
+/** Walk up from `startDir`, following symlinks, looking for the compositor. */
+function findCompositor(startDir, depth = 0, seen = new Set()) {
+  if (depth > 6) return null
+  let real = startDir
+  try {
+    real = realpathSync(startDir)
+  } catch {
+    /* keep the logical path when the directory does not exist */
+  }
+  if (seen.has(real)) return null
+  seen.add(real)
+  for (const candidate of [
+    join(real, '@remotion', COMPOSITOR_PACKAGE),
+    join(real, 'node_modules', '@remotion', COMPOSITOR_PACKAGE),
+  ]) {
+    if (existsSync(join(candidate, 'ffmpeg.exe'))) return candidate
+  }
+  const parent = dirname(real)
+  if (parent === real) return null
+  return findCompositor(parent, depth + 1, seen)
+}
+
+/**
+ * Locate the compositor package.
+ *
+ * pnpm keeps the CLI and the renderer in two different `.pnpm/<pkg>/node_modules`
+ * trees, so the compositor is a sibling of the *renderer*, not of the CLI —
+ * walking up from the CLI alone never reaches it. Starting from the CLI's
+ * resolved `@remotion/renderer` sibling does. The extra seeds cover a flat npm
+ * install and a source checkout.
+ */
+export function resolveCompositorDir() {
+  const seeds = [RENDER_DIR]
+  try {
+    const cliDir = dirname(realpathSync(RENDER_CLI))
+    seeds.push(cliDir, join(dirname(dirname(cliDir)), '@remotion', 'renderer'))
+  } catch {
+    /* the CLI may be missing entirely; the remaining seeds still apply */
+  }
+  for (const seed of seeds) {
+    const found = findCompositor(seed)
+    if (found) return found
+  }
+  return null
+}
+
+/**
+ * Copy the compositor next to the data directory and return that directory.
+ *
+ * Returns null when the compositor cannot be found or the copy fails — callers
+ * then render exactly as before, so this is a pure improvement, never a new
+ * failure mode.
+ *
+ * The staged copy is verified with a real encode before it is trusted: a copy
+ * that inherited a Low label looks identical on disk and would fail the render
+ * anyway, so "did the copy land" is not the question — "can this ffmpeg write an
+ * mp4" is. The probe writes into the render output directory, which is the same
+ * volume the real render writes to, so a passing probe means the next render
+ * will not fail for permission reasons.
+ */
+export function binaryDirectory(probeDir) {
+  if (PLATFORM !== 'win32') return null
+  if (stagedBinDirCache) return stagedBinDirCache
+  const source = resolveCompositorDir()
+  if (!source) return null
+  const target = stagedBinDir()
+  const stagedFfmpeg = join(target, 'ffmpeg.exe')
+  try {
+    const sourceSize = statSync(join(source, 'ffmpeg.exe')).size
+    const fresh = existsSync(stagedFfmpeg) && statSync(stagedFfmpeg).size === sourceSize
+    if (!fresh) {
+      mkdirSync(target, { recursive: true })
+      for (const entry of readdirSync(source, { withFileTypes: true })) {
+        if (!entry.isFile()) continue
+        copyFileSync(join(source, entry.name), join(target, entry.name))
+      }
+    }
+    if (!canEncodeMp4(stagedFfmpeg, probeDir)) return null
+    stagedBinDirCache = target
+    return stagedBinDirCache
+  } catch (error) {
+    console.error(`[aibench] could not stage the render binaries: ${errorMessage(error)}`)
+    return null
+  }
+}
+
+/**
+ * Ask ffmpeg to encode one frame into an mp4 in `probeDir`.
+ *
+ * Synchronous on purpose: it runs once per process, takes well under a second,
+ * and a failed probe must be known *before* the render starts rather than
+ * discovered as a 900-frame failure 8 minutes later.
+ *
+ * The input is a PNG piped through `image2pipe`, which is deliberately the same
+ * shape of pipeline Remotion itself uses for real renders (`-vcodec mjpeg -i -`
+ * into libx264). The ffmpeg bundled in `@remotion/compositor-*` is a reduced
+ * build — it has the `image2pipe` demuxer and the `png`/`mjpeg` decoders, but no
+ * filter graph and no `rawvideo` demuxer, so the obvious probes (`-f lavfi`,
+ * `-f rawvideo`) fail on a perfectly healthy binary. Probing the pipeline that
+ * actually gets used is the only way this check can mean anything.
+ */
+function canEncodeMp4(ffmpegPath, probeDir) {
+  if (!probeDir) return true
+  const probeFile = join(probeDir, `.probe-${process.pid}-${Date.now().toString(36)}.mp4`)
+  const args = [
+    '-hide_banner',
+    '-loglevel', 'error',
+    '-f', 'image2pipe',
+    '-vcodec', 'png',
+    '-i', '-',
+    '-frames:v', '1',
+    '-c:v', 'libx264',
+    '-pix_fmt', 'yuv420p',
+    '-y', probeFile,
+  ]
+  try {
+    const result = spawnSync(ffmpegPath, args, {
+      cwd: dirname(ffmpegPath),
+      windowsHide: true,
+      timeout: 30000,
+      encoding: 'utf8',
+      input: tinyPng(64, 64, [0x18, 0x20, 0x34]),
+    })
+    const ok = result.status === 0 && existsSync(probeFile)
+    if (!ok) {
+      console.error(
+        `[aibench] staged ffmpeg cannot write an mp4 into ${probeDir}: ` +
+          `${(result.stderr || result.error?.message || 'no output').toString().trim().slice(-300)}`,
+      )
+    }
+    return ok
+  } catch (error) {
+    console.error(`[aibench] ffmpeg probe failed: ${errorMessage(error)}`)
+    return false
+  } finally {
+    try {
+      rmSync(probeFile, { force: true })
+    } catch {
+      /* nothing to clean up */
+    }
+  }
+}
+
+const CRC_TABLE = (() => {
+  const table = new Int32Array(256)
+  for (let n = 0; n < 256; n += 1) {
+    let c = n
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    table[n] = c
+  }
+  return table
+})()
+
+function crc32(buffer) {
+  let c = -1
+  for (const byte of buffer) c = CRC_TABLE[(c ^ byte) & 0xff] ^ (c >>> 8)
+  return (c ^ -1) >>> 0
+}
+
+function pngChunk(type, data) {
+  const length = Buffer.alloc(4)
+  length.writeUInt32BE(data.length, 0)
+  const typed = Buffer.concat([Buffer.from(type, 'ascii'), data])
+  const crc = Buffer.alloc(4)
+  crc.writeUInt32BE(crc32(typed), 0)
+  return Buffer.concat([length, typed, crc])
+}
+
+/** Build a solid-colour PNG in memory. Avoids shipping a fixture file. */
+export function tinyPng(width, height, [r, g, b]) {
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0)
+  header.writeUInt32BE(height, 4)
+  header[8] = 8 // bit depth
+  header[9] = 2 // colour type: truecolour
+  const raw = Buffer.alloc(height * (1 + width * 3))
+  for (let y = 0; y < height; y += 1) {
+    const row = y * (1 + width * 3)
+    raw[row] = 0 // filter: none
+    for (let x = 0; x < width; x += 1) {
+      const at = row + 1 + x * 3
+      raw[at] = r
+      raw[at + 1] = g
+      raw[at + 2] = b
+    }
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', deflateSync(raw)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ])
+}
 
 const STILL_TIMEOUT_MS = 5 * 60 * 1000
 const RENDER_TIMEOUT_MS = 15 * 60 * 1000
@@ -930,6 +1182,43 @@ function runRemotion(args, timeoutMs, job, extraEnv) {
       resolvePromise({ ok: code === 0, out, err })
     })
   })
+}
+
+/**
+ * Turn a Remotion failure into something a person can act on.
+ *
+ * `render` failures reach the panel as whatever Remotion last printed, and the
+ * last thing it prints is usually the *symptom*: the frame writer fails with
+ * `Error: write EPIPE` / `write EOF` because the ffmpeg child already exited.
+ * The actual reason ("Error opening output …: Permission denied", exit code
+ * -13) is a few hundred lines earlier in stderr, so a user reading the job
+ * error learns nothing and cannot tell it apart from running out of disk.
+ *
+ * Rather than guess, keep the raw tail and append the diagnosis when the
+ * fingerprint is unambiguous. Anything unrecognised passes through untouched —
+ * a wrong hint is worse than none.
+ */
+function explainRenderFailure(rawError) {
+  const text = String(rawError ?? '')
+  const hints = []
+  const permissionDenied = /Error opening output[^\r\n]*Permission denied/i.test(text)
+  const pipeGone = /\bwrite (EPIPE|EOF)\b|\bcode: 'EPIPE'\b/i.test(text)
+  if (permissionDenied || pipeGone) {
+    hints.push(
+      'ffmpeg could not create its temporary mp4. On Windows this is almost always a ' +
+        'Mandatory Integrity Label problem, not a disk-full or antivirus problem: if any ' +
+        'directory above this package carries "Mandatory Label\\Low Mandatory Level", the ' +
+        'ffmpeg child inherits Low integrity and the No-Write-Up rule blocks it from ' +
+        'writing to a normal (Medium) temp directory. The renderer launches ffmpeg from ' +
+        `${stagedBinDir()} when it can stage the binaries there; if that directory is ` +
+        'missing, AiBench could not find the Remotion compositor package for this install.',
+    )
+  }
+  if (/\bENOSPC\b/.test(text)) {
+    hints.push('The output volume is full (ENOSPC). Free some space and render again.')
+  }
+  if (hints.length === 0) return text
+  return `${text}\n\n[aibench] ${hints.join('\n[aibench] ')}`
 }
 
 // ---------------------------------------------------------------------------
@@ -2174,11 +2463,16 @@ function parseUrl(req) {
 }
 
 function renderStatus() {
+  // Report the staged binaries without staging them: this runs on every
+  // /panel/info, and copying 28 MB as a side effect of a status call would be a
+  // surprise. `binaries` stays null until the first render stages them.
+  const staged = existsSync(join(stagedBinDir(), 'ffmpeg.exe')) ? stagedBinDir() : null
   return {
     engine: 'remotion',
     projectDir: RENDER_DIR,
     cli: RENDER_CLI,
     available: existsSync(RENDER_CLI),
+    binaries: staged,
   }
 }
 
@@ -2791,6 +3085,13 @@ async function handle(req, res) {
         '--log=error',
         '--concurrency=4',
       ]
+      // Launch ffmpeg from the staged Medium-integrity copy. Without this a Low
+      // integrity label anywhere above the package makes every mp4 render die on
+      // "Permission denied" and surface only as `write EPIPE` — see binaryDirectory().
+      // The probe encodes into the real output directory, so passing it means the
+      // next render cannot fail for a reason the probe already ruled out.
+      const binaries = binaryDirectory(outputs)
+      if (binaries) args.push(`--binaries-directory=${binaries.replace(/\\/g, '/')}`)
       if (quality === 'preview') args.push('--scale=0.5')
 
       // Fire and forget: the client polls /jobs/:id.
@@ -2799,7 +3100,7 @@ async function handle(req, res) {
         job.finishedAt = nowIso()
         if (!result.ok || !existsSync(outFile)) {
           job.status = 'failed'
-          job.error = (result.err || result.out || 'render failed').slice(-1200)
+          job.error = explainRenderFailure(result.err || result.out || 'render failed').slice(-1600)
           const failed = { ...readProject(record.id), status: 'failed' }
           if (failed.id) writeProject(failed)
           return
