@@ -12,6 +12,7 @@ AiBench 创作台 — 一个 DeepSeek Harness 面板插件。不生图、不生�
 |---|---|
 | Agent 智能体 | Agent 卡片墙：三张内置卡（Explainer / Reel / Data），每卡显示版本、赛道、模板数、技能数，动作：配置环境 / ▶ 打开创作台 / 卸载；头部可「＋ 安装智能体」与「✨ 一键成片」；下方是最近项目 |
 | Studio 工作室 | 按 Agent 挑模板开工，或点最近项目继续 |
+| Forge 造 Agent | 一句话造一个自己的智能体：选赛道 → 填目标 → 预览三个包文件 → 校验 → 安装（见下） |
 | Task 任务 | 渲染任务队列（单帧与成片），运行中显示进度条，2 秒自动刷新 |
 | Setting 设置 | 数据/智能体/项目目录、渲染引擎与 CLI 路径、版本与平台；界面语言切换（中文 / English，立即生效并写入 settings.json） |
 
@@ -106,6 +107,29 @@ description: 数据故事的流水线：抛数 → 拆结构 → 找异常 → �
 
 `GET|PUT /agents/:id/config` 同时返回 `skills: agentSkillBindings(id)`，每项带 `default` 布尔，弹层据此渲染"哪个技能是自动的"，不用二次请求。
 
+## 造 Agent（Forge）
+
+「一句话造一个智能体」不是让模型凭空写代码，而是**脚手架先行、模型只改散文**：
+
+1. `GET /forge/blueprint` 给出向导要用的全部选项（5 条赛道、look / palette / 画幅 / 时长 / BPM / 字幕的取值域、包文件清单、硬约束）。
+2. `POST /forge/drafts {goal, track, ...}` 用 `scaffoldAgentPackage()` **纯函数**生成三个文件 —— `manifest.json`、`templates/main.template.json`、`skills/<name>/SKILL.md`。同一份 spec 两次调用逐字节相同：无时钟、无随机、无模型。
+3. `POST /forge/drafts/:id/refine` 可选地让模型改写 SKILL.md 正文。**模型挂了不算失败** —— 返回 `{refined:false, reason}`，草稿照旧可用。回复丢了 frontmatter 就直接丢弃。
+4. `POST /forge/drafts/:id/install` **先校验再安装**：`validateDraft()` 不过就回 `409 invalid_draft` 并带上错误列表，半成品永远进不了 `AGENTS_DIR`。
+
+设计理由写在代码注释里：模型限流或答错时，用户绝不能得到一个「装得上但渲染不出东西」的 Agent。校验器抓的是那类静默失败 —— 未知的 `style.look` 会安静地渲染成默认 look，没有 frontmatter 的技能注册不上，manifest 指向的模板文件不存在。
+
+`draft.json` 是 Forge 自己的账本（目标、赛道、创建时间），不是包的一部分：`readDraftFiles()` 不把它列进文件预览，`installAgentFromDir()` 也不会把它复制进 `AGENTS_DIR`。
+
+| 路由 | 说明 |
+|---|---|
+| `GET /forge/blueprint` | 向导的全部选项与硬约束 |
+| `GET /forge/drafts` | 草稿列表，新到旧 |
+| `POST /forge/drafts` | `{goal, track?, look?, palette?, aspect?, durationSec?, beatBpm?, subtitle?, name?}` → 脚手架 + 校验 |
+| `GET /forge/drafts/:id` | 单个草稿（含文件全文与校验结果） |
+| `POST /forge/drafts/:id/refine` | 可选模型润色，离线降级 |
+| `POST /forge/drafts/:id/install` | 校验闸门 → 安装 → 同步技能 |
+| `DELETE /forge/drafts/:id` | 删草稿 |
+
 ## 扩展新的子栏目
 
 左侧导航栏是数据驱动的，`SECTIONS` 是唯一的真源。client 模块对外导出两个函数：
@@ -152,6 +176,9 @@ GET  /jobs               → 任务队列，新到旧
 GET  /jobs/:id
 GET  /skills             → 已装 Agent 的 SKILL.md 清单（含 @ 句柄与 default 标记）
 POST /skills/sync        → 手动重扫并重新注册到 DSH 技能库
+GET  /forge/blueprint | /forge/drafts (GET|POST)
+GET|DELETE /forge/drafts/:id
+POST /forge/drafts/:id/refine | /forge/drafts/:id/install
 GET  /media/:projectId/:fileName
 ```
 

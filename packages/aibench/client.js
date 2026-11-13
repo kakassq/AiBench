@@ -199,6 +199,35 @@ window.__ModuleLoader__.load({
         copied: '已复制到剪贴板',
         copyFailed: '复制失败，请手动选中复制',
         open: '打开',
+        // ---- forge ----
+        navForge: '造 Agent',
+        forgeTitle: '造 Agent',
+        forgeHint: '一句话描述你要做的片子，AiBench 生成一个能直接安装的智能体包。不依赖模型：模型不可用时生成的东西一样完整。',
+        forgeGoal: '一句话目标',
+        forgeGoalPh: '给新上线的命令行工具做个 15 秒开场',
+        forgeTrack: '赛道',
+        forgeAdvanced: '细节（可留默认）',
+        forgeCreate: '生成草稿',
+        forgeCreating: '生成中…',
+        forgeDrafts: '草稿',
+        forgeEmpty: '还没有草稿。在上面写一句话就能造一个。',
+        forgeFiles: '文件',
+        forgeValidate: '重新校验',
+        forgeValid: '校验通过',
+        forgeInvalid: '校验未通过',
+        forgeInstall: '安装为智能体',
+        forgeInstalling: '安装中…',
+        forgeInstalled: '已安装为智能体',
+        forgeDelete: '删除草稿',
+        forgeRefine: '让模型润色',
+        forgeRefining: '润色中…',
+        forgeRefined: '已润色',
+        forgeRefineOffline: '模型通道不可用，草稿本身已经是完整的。',
+        forgeWarnings: '提示',
+        forgeErrors: '错误',
+        forgeCreated: '草稿已生成',
+        forgeDeleted: '草稿已删除',
+        forgeFailed: '造 Agent 失败',
       },
       en: {
         launcher: 'AiBench studio',
@@ -370,6 +399,35 @@ window.__ModuleLoader__.load({
         copied: 'Copied to clipboard',
         copyFailed: 'Copy failed — select the text manually',
         open: 'Open',
+        // ---- forge ----
+        navForge: 'Forge agent',
+        forgeTitle: 'Forge agent',
+        forgeHint: 'Describe the video in one sentence; AiBench generates an agent package you can install right away. No model required — what it builds is complete even when every model route is down.',
+        forgeGoal: 'One-sentence goal',
+        forgeGoalPh: 'A 15-second opener for the CLI tool we just shipped',
+        forgeTrack: 'Track',
+        forgeAdvanced: 'Details (defaults are fine)',
+        forgeCreate: 'Generate draft',
+        forgeCreating: 'Generating…',
+        forgeDrafts: 'Drafts',
+        forgeEmpty: 'No drafts yet. Write one sentence above to build one.',
+        forgeFiles: 'Files',
+        forgeValidate: 'Revalidate',
+        forgeValid: 'Validation passed',
+        forgeInvalid: 'Validation failed',
+        forgeInstall: 'Install as agent',
+        forgeInstalling: 'Installing…',
+        forgeInstalled: 'Installed as agent',
+        forgeDelete: 'Delete draft',
+        forgeRefine: 'Let a model polish it',
+        forgeRefining: 'Polishing…',
+        forgeRefined: 'Polished',
+        forgeRefineOffline: 'No model route is reachable; the draft is already complete.',
+        forgeWarnings: 'Notes',
+        forgeErrors: 'Errors',
+        forgeCreated: 'Draft generated',
+        forgeDeleted: 'Draft deleted',
+        forgeFailed: 'Forge failed',
       },
     }
 
@@ -619,6 +677,21 @@ window.__ModuleLoader__.load({
       '.abx-kv-copy{border:none;background:transparent;color:var(--dsw-alias-brand-primary);font:inherit;font-size:10px;cursor:pointer;padding:0 0 0 6px;}',
       '.abx-bar{height:3px;border-radius:2px;background:var(--dsw-alias-border-l1);overflow:hidden;}',
       '.abx-bar-fill{height:100%;background:var(--dsw-alias-brand-primary);transition:width .3s;}',
+      // ---- forge ----
+      '.abx-forge{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start;max-width:1200px;}',
+      '.abx-forge-main{display:flex;flex-direction:column;gap:12px;min-width:0;}',
+      '.abx-forge-side{display:flex;flex-direction:column;gap:6px;min-width:0;}',
+      '.abx-forge-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;}',
+      '.abx-file{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden;background:var(--dsw-alias-bg-layer-1);}',
+      '.abx-file-h{display:flex;align-items:center;gap:8px;padding:6px 9px;border-bottom:1px solid var(--dsw-alias-border-l1);font-size:10.5px;font-family:var(--dsw-alias-font-mono,ui-monospace,monospace);color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-2);}',
+      '.abx-file-b{margin:0;padding:8px 10px;max-height:230px;overflow:auto;font-family:var(--dsw-alias-font-mono,ui-monospace,monospace);font-size:10px;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:var(--dsw-alias-label-secondary);}',
+      '.abx-draft{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:7px 9px;background:var(--dsw-alias-bg-layer-1);cursor:pointer;font:inherit;text-align:left;width:100%;color:var(--dsw-alias-label-primary);}',
+      '.abx-draft:hover{border-color:var(--dsw-alias-brand-primary);}',
+      '.abx-draft[data-on="true"]{border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-2);}',
+      '.abx-draft-t{font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+      '.abx-draft-m{font-size:9.5px;color:var(--dsw-alias-label-secondary);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+      '.abx-forge-list{display:flex;flex-direction:column;gap:5px;max-height:260px;overflow:auto;}',
+      '.abx-tag{font-size:9px;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:999px;border:1px solid currentColor;}',
     ].join('\n')
 
     // ---------------------------------------------------------------
@@ -1236,6 +1309,7 @@ window.__ModuleLoader__.load({
     const SECTIONS = [
       { id: 'agents', labelKey: 'navAgents', icon: 'agents' },
       { id: 'studio', labelKey: 'navStudio', icon: 'studio' },
+      { id: 'forge', labelKey: 'navForge', icon: 'forge' },
       { id: 'tasks', labelKey: 'navTasks', icon: 'tasks' },
       { id: 'settings', labelKey: 'navSettings', icon: 'settings' },
     ]
@@ -1270,6 +1344,7 @@ window.__ModuleLoader__.load({
       }
       if (name === 'studio') return h('svg', common, h('path', { d: 'M4.5 3.2 12.5 8l-8 4.8z' }))
       if (name === 'tasks') return h('svg', common, h('path', { d: 'M3 4h10M3 8h10M3 12h6' }))
+      if (name === 'forge') return h('svg', common, h('path', { d: 'M8 1.8 9.6 6l4.2 1.6L9.6 9.2 8 13.4 6.4 9.2 2.2 7.6 6.4 6z' }))
       if (name === 'settings') return h('svg', common, h('circle', { cx: 8, cy: 8, r: 2.6 }), h('path', { d: 'M8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8' }))
       if (name === 'collapse') return h('svg', common, h('path', { d: 'M10 3.5 5.5 8l4.5 4.5' }))
       if (name === 'expand') return h('svg', common, h('path', { d: 'M6 3.5 10.5 8 6 12.5' }))
@@ -1604,6 +1679,220 @@ window.__ModuleLoader__.load({
     }
 
     // ---------------------------------------------------------------
+    // Forge — build an agent package from one sentence
+    // ---------------------------------------------------------------
+    // The Host does the scaffolding; this page only collects the sentence and
+    // shows what came out. Nothing here needs a model: `refine` is optional
+    // polish, and the page says so instead of failing when no route is up.
+    function makeForge(store, t, zh) {
+      const zhNow = () => (store.get().settings && store.get().settings.locale ? String(store.get().settings.locale).toLowerCase().indexOf('en') !== 0 : zh)
+      return function Forge(props) {
+        const blueprint = props.blueprint || { tracks: [], looks: [], palettes: [], aspects: [], durations: [], bpms: [] }
+        const drafts = props.drafts || []
+        const draft = props.draft
+        const validation = props.validation
+        const pick = (options, value) =>
+          (options || []).map((option) =>
+            h(
+              'button',
+              {
+                key: String(option.value),
+                className: 'abx-seg-btn',
+                'data-on': String(option.value) === String(value) ? 'true' : 'false',
+                onClick: () => props.onForm({ [option.field]: option.value }),
+              },
+              option.label,
+            ),
+          )
+
+        return h(
+          'div',
+          { className: 'abx-page' },
+          h(
+            'div',
+            { className: 'abx-toolrow' },
+            h(
+              'div',
+              { style: { flex: 1, minWidth: 0 } },
+              h('h1', { className: 'abx-h1' }, t('forgeTitle')),
+              h('div', { className: 'abx-hint' }, t('forgeHint')),
+            ),
+            h(Btn, { onClick: props.onRefresh, disabled: props.busy === 'load' }, props.busy === 'load' ? t('loading') : t('refresh')),
+          ),
+          h(
+            'div',
+            { className: 'abx-forge' },
+            // ---- left: the sentence + the result ----
+            h(
+              'div',
+              { className: 'abx-forge-main' },
+              h(
+                'div',
+                { className: 'abx-field' },
+                h('div', { className: 'abx-field-l' }, t('forgeGoal')),
+                h('textarea', {
+                  className: 'abx-textarea',
+                  placeholder: t('forgeGoalPh'),
+                  value: props.form.goal || '',
+                  onChange: (event) => props.onForm({ goal: event.target.value }),
+                }),
+              ),
+              h(
+                'div',
+                { className: 'abx-field' },
+                h('div', { className: 'abx-field-l' }, t('forgeTrack')),
+                h('div', { className: 'abx-seg', style: { flexWrap: 'wrap' } },
+                  blueprint.tracks.map((track) =>
+                    h(
+                      'button',
+                      {
+                        key: track.id,
+                        className: 'abx-seg-btn',
+                        'data-on': props.form.track === track.id ? 'true' : 'false',
+                        title: track.hint,
+                        onClick: () => props.onForm({ track: track.id }),
+                      },
+                      `${track.id} ${zhNow() ? track.name : track.id}`,
+                    ),
+                  ),
+                ),
+              ),
+              h(
+                'div',
+                { className: 'abx-field' },
+                h('div', { className: 'abx-field-l' }, t('forgeAdvanced')),
+                h(
+                  'div',
+                  { className: 'abx-forge-grid' },
+                  h('div', { className: 'abx-field' },
+                    h('div', { className: 'abx-field-l' }, t('look')),
+                    h('div', { className: 'abx-seg', style: { flexWrap: 'wrap' } },
+                      pick(blueprint.looks.map((id, index) => ({ value: id, field: 'look', label: LOOKS.find((l) => l.value === index) ? (zhNow() ? LOOKS.find((l) => l.value === index).zh : LOOKS.find((l) => l.value === index).en) : id })), props.form.look),
+                    ),
+                  ),
+                  h('div', { className: 'abx-field' },
+                    h('div', { className: 'abx-field-l' }, t('palette')),
+                    h('div', { className: 'abx-seg', style: { flexWrap: 'wrap' } },
+                      pick(blueprint.palettes.map((name) => ({ value: name, field: 'palette', label: name })), props.form.palette),
+                    ),
+                  ),
+                  h('div', { className: 'abx-field' },
+                    h('div', { className: 'abx-field-l' }, t('frame')),
+                    h('div', { className: 'abx-seg' },
+                      pick(blueprint.aspects.map((value) => ({ value, field: 'aspect', label: value })), props.form.aspect),
+                    ),
+                  ),
+                  h('div', { className: 'abx-field' },
+                    h('div', { className: 'abx-field-l' }, t('duration')),
+                    h('div', { className: 'abx-seg', style: { flexWrap: 'wrap' } },
+                      pick(blueprint.durations.map((value) => ({ value, field: 'durationSec', label: `${value}s` })), props.form.durationSec),
+                    ),
+                  ),
+                  h('div', { className: 'abx-field' },
+                    h('div', { className: 'abx-field-l' }, t('bpm')),
+                    h('div', { className: 'abx-seg', style: { flexWrap: 'wrap' } },
+                      pick(blueprint.bpms.map((value) => ({ value, field: 'beatBpm', label: String(value) })), props.form.beatBpm),
+                    ),
+                  ),
+                  h('div', { className: 'abx-field' },
+                    h('div', { className: 'abx-field-l' }, t('subtitleLabel')),
+                    h('div', { className: 'abx-seg', style: { flexWrap: 'wrap' } },
+                      pick(blueprint.subtitles.map((value) => ({ value, field: 'subtitle', label: value })), props.form.subtitle),
+                    ),
+                  ),
+                ),
+              ),
+              h(
+                'div',
+                { className: 'abx-inputrow' },
+                h(Btn, {
+                  primary: true,
+                  disabled: props.busy === 'create' || !String(props.form.goal || '').trim(),
+                  onClick: props.onCreate,
+                }, props.busy === 'create' ? t('forgeCreating') : `✨ ${t('forgeCreate')}`),
+              ),
+              draft
+                ? h(
+                    'div',
+                    { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+                    h(
+                      'div',
+                      { className: 'abx-toolrow' },
+                      h(
+                        'div',
+                        { style: { flex: 1, minWidth: 0 } },
+                        h('div', { className: 'abx-sec-h' }, `${t('forgeFiles')} · ${draft.id}`),
+                        h('div', { className: 'abx-hint' }, `${draft.meta?.agentId || ''} · ${draft.meta?.track || ''} · ${draft.meta?.look || ''}`),
+                      ),
+                      h(Btn, { onClick: props.onValidate, disabled: props.busy === 'validate' }, t('forgeValidate')),
+                      h(Btn, { onClick: props.onRefine, disabled: props.busy === 'refine' }, props.busy === 'refine' ? t('forgeRefining') : t('forgeRefine')),
+                      h(Btn, {
+                        primary: true,
+                        disabled: props.busy === 'install' || !validation || !validation.ok,
+                        onClick: props.onInstall,
+                      }, props.busy === 'install' ? t('forgeInstalling') : t('forgeInstall')),
+                      h(Btn, { onClick: props.onDelete, disabled: props.busy === 'delete' }, t('forgeDelete')),
+                    ),
+                    validation
+                      ? h(
+                          'div',
+                          { className: validation.ok ? 'abx-ok' : 'abx-warn' },
+                          validation.ok ? `✓ ${t('forgeValid')}` : `✗ ${t('forgeInvalid')}`,
+                          (validation.errors || []).length > 0
+                            ? h('div', null, `${t('forgeErrors')}：`, h('ul', { style: { margin: '3px 0 0 16px' } }, validation.errors.map((e, i) => h('li', { key: i }, e))))
+                            : null,
+                          (validation.warnings || []).length > 0
+                            ? h('div', { style: { marginTop: 4 } }, `${t('forgeWarnings')}：`, h('ul', { style: { margin: '3px 0 0 16px' } }, validation.warnings.map((w, i) => h('li', { key: i }, w))))
+                            : null,
+                        )
+                      : null,
+                    (draft.files || []).map((file) =>
+                      h(
+                        'div',
+                        { key: file.path, className: 'abx-file' },
+                        h('div', { className: 'abx-file-h' }, file.path),
+                        h('pre', { className: 'abx-file-b' }, file.content),
+                      ),
+                    ),
+                  )
+                : null,
+            ),
+            // ---- right: existing drafts ----
+            h(
+              'div',
+              { className: 'abx-forge-side' },
+              h('div', { className: 'abx-sec-h' }, `${t('forgeDrafts')} · ${drafts.length}`),
+              drafts.length === 0
+                ? h('div', { className: 'abx-empty' }, t('forgeEmpty'))
+                : h(
+                    'div',
+                    { className: 'abx-forge-list' },
+                    drafts.map((item) =>
+                      h(
+                        'button',
+                        {
+                          key: item.id,
+                          className: 'abx-draft',
+                          'data-on': draft && draft.id === item.id ? 'true' : 'false',
+                          onClick: () => props.onPick(item.id),
+                        },
+                        h(
+                          'div',
+                          { style: { minWidth: 0 } },
+                          h('div', { className: 'abx-draft-t' }, item.goal || item.agentId || item.id),
+                          h('div', { className: 'abx-draft-m' }, `${item.agentId || ''} · ${item.track || ''}`),
+                        ),
+                        h('span', { className: 'abx-tag', style: { color: 'var(--dsw-alias-label-secondary)' } }, item.look || ''),
+                      ),
+                    ),
+                  ),
+            ),
+          ),
+        )
+      }
+    }
+
+    // ---------------------------------------------------------------
     // Shell (main panel)
     // ---------------------------------------------------------------
     // ---------------------------------------------------------------
@@ -1885,6 +2174,7 @@ window.__ModuleLoader__.load({
       const StudioHome = makeStudioHome(store, t, zh)
       const Tasks = makeTasks(store, t, zh)
       const Settings = makeSettings(store, t, zh)
+      const Forge = makeForge(store, t, zh)
       const Modals = makeModals(t)
 
       // `zh` above is the language DSH started with; a preference saved by the
@@ -1921,6 +2211,23 @@ window.__ModuleLoader__.load({
         const [directorResult, setDirectorResult] = React.useState(null)
         const [directorNote, setDirectorNote] = React.useState('')
         const [models, setModels] = React.useState(null)
+
+        // ---- forge ----
+        const [blueprint, setBlueprint] = React.useState(null)
+        const [drafts, setDrafts] = React.useState([])
+        const [draft, setDraft] = React.useState(null)
+        const [validation, setValidation] = React.useState(null)
+        const [forgeBusy, setForgeBusy] = React.useState('')
+        const [forgeForm, setForgeForm] = React.useState({
+          goal: '',
+          track: '1.3',
+          look: '',
+          palette: '',
+          aspect: '',
+          durationSec: 20,
+          beatBpm: 120,
+          subtitle: 'zh',
+        })
 
         const stopPoll = React.useCallback(() => {
           if (pollRef.current) {
@@ -2290,6 +2597,123 @@ window.__ModuleLoader__.load({
           }
         }, [stopPoll, renderStill, pollJob])
 
+        // ---- forge ----
+        // The scaffold runs Host-side with no model, so "create" cannot fail for
+        // lack of quota; only the optional `refine` step talks to a model.
+        const loadForge = React.useCallback(async () => {
+          setForgeBusy('load')
+          const [bp, list] = await Promise.all([getJson('/forge/blueprint'), getJson('/forge/drafts')])
+          if (bp.ok) {
+            const next = bp.payload.blueprint
+            setBlueprint(next)
+            setForgeForm((prev) => ({
+              ...prev,
+              track: prev.track || (next.tracks[0] && next.tracks[0].id) || '1.3',
+              look: prev.look || (next.looks[0] ?? ''),
+              palette: prev.palette || (next.palettes[0] ?? ''),
+              aspect: prev.aspect || (next.aspects[0] ?? ''),
+            }))
+          }
+          if (list.ok) setDrafts(list.payload.items || [])
+          setForgeBusy('')
+        }, [])
+
+        const pickDraft = React.useCallback(async (id) => {
+          const res = await getJson(`/forge/drafts/${encodeURIComponent(id)}`)
+          if (!res.ok) {
+            store.set({ notice: res.error })
+            return
+          }
+          setDraft(res.payload.draft)
+          setValidation(res.payload.validation)
+        }, [])
+
+        const createDraft = React.useCallback(async () => {
+          const goal = String(forgeForm.goal || '').trim()
+          if (!goal) return
+          setForgeBusy('create')
+          const res = await postJson('/forge/drafts', {
+            goal,
+            track: forgeForm.track,
+            look: forgeForm.look,
+            palette: forgeForm.palette,
+            aspect: forgeForm.aspect,
+            durationSec: forgeForm.durationSec,
+            beatBpm: forgeForm.beatBpm,
+            subtitle: forgeForm.subtitle,
+          })
+          setForgeBusy('')
+          if (!res.ok) {
+            store.set({ notice: `${t('forgeFailed')} — ${res.error}` })
+            return
+          }
+          setDraft(res.payload.draft)
+          setValidation(res.payload.validation)
+          const list = await getJson('/forge/drafts')
+          if (list.ok) setDrafts(list.payload.items || [])
+          store.set({ notice: t('forgeCreated') })
+        }, [forgeForm])
+
+        const validateDraftNow = React.useCallback(async () => {
+          if (!draft) return
+          setForgeBusy('validate')
+          const res = await getJson(`/forge/drafts/${encodeURIComponent(draft.id)}`)
+          setForgeBusy('')
+          if (!res.ok) {
+            store.set({ notice: res.error })
+            return
+          }
+          setDraft(res.payload.draft)
+          setValidation(res.payload.validation)
+        }, [draft])
+
+        const refineDraft = React.useCallback(async () => {
+          if (!draft) return
+          setForgeBusy('refine')
+          const res = await postJson(`/forge/drafts/${encodeURIComponent(draft.id)}/refine`, {})
+          setForgeBusy('')
+          if (!res.ok) {
+            store.set({ notice: `${t('forgeFailed')} — ${res.error}` })
+            return
+          }
+          setDraft(res.payload.draft)
+          setValidation(res.payload.validation)
+          // `refined: false` is a normal outcome, not a failure: the scaffold is
+          // already complete, so a dead model route only costs the polish.
+          store.set({ notice: res.payload.refined ? t('forgeRefined') : res.payload.reason || t('forgeRefineOffline') })
+        }, [draft])
+
+        const installDraft = React.useCallback(async () => {
+          if (!draft) return
+          setForgeBusy('install')
+          const res = await postJson(`/forge/drafts/${encodeURIComponent(draft.id)}/install`, {})
+          setForgeBusy('')
+          if (!res.ok) {
+            const detail = res.payload && res.payload.error && res.payload.error.detail
+            const first = detail && detail.errors && detail.errors[0]
+            store.set({ notice: `${t('installFailed')} — ${first || res.error}` })
+            return
+          }
+          store.set({ agents: res.payload.agents || [], notice: t('forgeInstalled') })
+          await refreshSkills()
+        }, [draft])
+
+        const deleteDraft = React.useCallback(async () => {
+          if (!draft) return
+          setForgeBusy('delete')
+          const res = await api(`/forge/drafts/${encodeURIComponent(draft.id)}`, { method: 'DELETE' })
+          setForgeBusy('')
+          if (!res.ok) {
+            store.set({ notice: res.error })
+            return
+          }
+          setDraft(null)
+          setValidation(null)
+          const list = await getJson('/forge/drafts')
+          if (list.ok) setDrafts(list.payload.items || [])
+          store.set({ notice: t('forgeDeleted') })
+        }, [draft])
+
         React.useEffect(() => {
           if (state.panel || state.loading) return undefined
           refresh()
@@ -2305,6 +2729,13 @@ window.__ModuleLoader__.load({
           }, 2000)
           return () => clearInterval(id)
         }, [section, refreshJobs])
+
+        // Forge needs its option tables once, the first time the page opens.
+        React.useEffect(() => {
+          if (section !== 'forge') return undefined
+          if (!blueprint) loadForge()
+          return undefined
+        }, [section, blueprint, loadForge])
 
         React.useEffect(() => stopPoll, [stopPoll])
 
@@ -2376,6 +2807,23 @@ window.__ModuleLoader__.load({
           })
         } else if (section === 'tasks') {
           page = h(Tasks, { jobs: state.jobs || [], projects: state.projects || [], onRefresh: refreshJobs })
+        } else if (section === 'forge') {
+          page = h(Forge, {
+            blueprint,
+            drafts,
+            draft,
+            validation,
+            form: forgeForm,
+            busy: forgeBusy,
+            onForm: (patch) => setForgeForm((prev) => ({ ...prev, ...patch })),
+            onCreate: createDraft,
+            onPick: pickDraft,
+            onValidate: validateDraftNow,
+            onRefine: refineDraft,
+            onInstall: installDraft,
+            onDelete: deleteDraft,
+            onRefresh: loadForge,
+          })
         } else if (section === 'settings') {
           page = h(Settings, { panel, settings: state.settings || {}, zh: isZh(), onRefresh: refresh, onLocale })
         }

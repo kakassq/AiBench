@@ -72,10 +72,10 @@ check('exports listSections', typeof mod.listSections === 'function')
 check('exports apply', typeof mod.apply === 'function')
 
 const builtin = mod.listSections()
-check('ships the four built-in sections', builtin.length === 4, `got ${builtin.length}`)
+check('ships the five built-in sections', builtin.length === 5, `got ${builtin.length}`)
 check(
-  'built-in ids are agents/studio/tasks/settings',
-  builtin.map((item) => item.id).join(',') === 'agents,studio,tasks,settings',
+  'built-in ids are agents/studio/forge/tasks/settings',
+  builtin.map((item) => item.id).join(',') === 'agents,studio,forge,tasks,settings',
   builtin.map((item) => item.id).join(','),
 )
 
@@ -83,13 +83,13 @@ check('rejects a duplicate id', mod.registerSection({ id: 'agents' }) === false)
 check('rejects an empty section', mod.registerSection({}) === false)
 check('rejects a missing argument', mod.registerSection() === false)
 check('accepts a new section', mod.registerSection({ id: 'store', labelKey: 'navStore' }) === true)
-check('new section is listed', mod.listSections().length === 5, `got ${mod.listSections().length}`)
+check('new section is listed', mod.listSections().length === 6, `got ${mod.listSections().length}`)
 check('registering the same id twice is a no-op', mod.registerSection({ id: 'store' }) === false)
 
 // listSections must hand out a copy, otherwise a caller could edit the rail.
 const copy = mod.listSections()
 copy.push({ id: 'hacked' })
-check('listSections returns a copy', mod.listSections().length === 5, `got ${mod.listSections().length}`)
+check('listSections returns a copy', mod.listSections().length === 6, `got ${mod.listSections().length}`)
 
 if (failures.length > 0) {
   console.log(`${failures.length} check(s) failed:`)

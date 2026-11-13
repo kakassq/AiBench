@@ -22,9 +22,11 @@
     "check:templates": "node scripts/check-templates.mjs",
     "check:director": "node scripts/check-director.mjs",
     "check:skills": "node scripts/check-skills.mjs",
+    "check:forge": "node scripts/check-forge.mjs",
+    "check:routes": "node scripts/check-routes.mjs",
     "check:build": "node scripts/check-storyboard-build.mjs",
     "check:installed": "node scripts/check-installed-layout.mjs",
     "check:icon": "node scripts/make-icon-png.mjs",
-    "check": "node scripts/check-timeline.mjs && node scripts/check-sections.mjs && node scripts/check-templates.mjs && node scripts/check-director.mjs && node scripts/check-skills.mjs && node scripts/check-storyboard-build.mjs && node scripts/check-installed-layout.mjs && node scripts/make-icon-png.mjs && node scripts/probe.mjs"
+    "check": "node scripts/check-all.mjs"
   }
 }

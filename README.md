@@ -28,6 +28,7 @@
 |---|---|
 | **Agent 智能体** | Agent 卡片墙（见下表）+ 最近项目；头部「＋ 安装智能体」与「✨ 一键成片」，每张卡可配置环境 / 打开创作台 / 卸载 |
 | **Studio 工作室** | 按 Agent 挑模板开工，或继续最近的项目 |
+| **Forge 造 Agent** | 一句话造一个自己的智能体：选赛道 → 填目标 → 预览三个包文件 → 校验 → 安装 |
 | **Task 任务** | 渲染任务队列：单帧 / 成片、进度条、产物链接，2 秒自动刷新 |
 | **Setting 设置** | 数据与项目目录、渲染引擎与 CLI 路径、版本与平台、界面语言（中文 / English，立即生效） |
 
@@ -104,10 +105,12 @@ pnpm add dsh-aibench
 
 ### 发布前会跑什么
 
-`pnpm check` 跑九道闸门，其中两道专门守着「装得上但跑不起来」这类问题：
+`pnpm check` 串跑全部闸门（`scripts/check-all.mjs`），其中四道专门守着「装得上但跑不起来」这类问题：
 
 - `check-storyboard-build.mjs` —— 预编译的 `dist/storyboard.mjs` 与 `src/storyboard.ts` 必须产出逐字节相同的分镜。Node 拒绝为 `node_modules` 下的文件剥离类型，所以发布包里带的是预编译产物；忘了重新编译会直接失败。
 - `check-installed-layout.mjs` —— 把 tgz 解到 `node_modules/dsh-aibench/` 下（模拟 npm 安装后的真实布局），验证插件能 import、渲染引擎能解析到包内的 `render/`、分镜规划器能跑。源码 checkout 里用符号链接，跑通不代表装得上。
+- `check-forge.mjs` —— 脚手架确定性（两次调用逐字节相同）、校验器能抓出坏 manifest / 未知 look / 无 frontmatter 的技能 / 缺失模板、安装后 `AGENTS_DIR` 里不带 `draft.json`。
+- `check-routes.mjs` —— 用假 `webServer` 捕获 `apply()` 注册的前缀路由，再用真 `req` 驱动它，断言状态码与 JSON 信封。`node --check` 抓不到的路由级 bug（例如 Host 里少一个常量）只有它能抓。
 
 完整发布步骤见 [docs/PUBLISHING.md](docs/PUBLISHING.md)。
 
@@ -129,6 +132,9 @@ scripts/check-skills.mjs    SKILL.md frontmatter、技能注册与默认技能�
 scripts/check-templates.mjs 模板描述符 → 渲染参数映射层的回归
 scripts/check-storyboard-build.mjs  预编译产物与源码不漂移（108 组分镜逐条比对）
 scripts/check-installed-layout.mjs  从 npm 安装后的目录布局是否真能跑
+scripts/check-forge.mjs     Forge 脚手架 / 校验器 / 安装闸门回归
+scripts/check-routes.mjs    路由级回归（假 webServer 驱动真 req）
+scripts/check-all.mjs       串跑全部闸门（node scripts/check-all.mjs）
 scripts/publish-npm.mjs      registry API 发布（无需 npm CLI）
 scripts/publish-github.mjs   Git Data API 推仓库（无需 git）
 ```

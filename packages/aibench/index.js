@@ -414,9 +414,10 @@ function writeProject(record) {
 // ---------------------------------------------------------------------------
 
 /** Recursive copy — small trees only (manifests, skills, templates). */
-function copyDirSync(src, dst) {
+function copyDirSync(src, dst, skip) {
   mkdirSync(dst, { recursive: true })
   for (const entry of readdirSync(src, { withFileTypes: true })) {
+    if (skip && skip.has(entry.name)) continue
     const from = join(src, entry.name)
     const to = join(dst, entry.name)
     if (entry.isDirectory()) copyDirSync(from, to)
@@ -532,7 +533,7 @@ function readAgentManifest(dir) {
  * into the profile data dir so the source folder can be moved or deleted, and
  * so uninstall is a single recursive remove.
  */
-function installAgentFromDir(sourceDir, options = {}) {
+export function installAgentFromDir(sourceDir, options = {}) {
   const src = resolve(String(sourceDir ?? ''))
   if (!existsSync(src)) throw new Error(`source directory not found: ${src}`)
   const manifest = readAgentManifest(src)
@@ -549,7 +550,9 @@ function installAgentFromDir(sourceDir, options = {}) {
     return { installed: false, alreadyInstalled: true, id, manifest }
   }
   if (existed) rmSync(target, { recursive: true, force: true })
-  copyDirSync(src, target)
+  // `draft.json` is Forge's own bookkeeping, not part of the package: an agent
+  // installed from a draft must not carry the draft record into AGENTS_DIR.
+  copyDirSync(src, target, new Set(['draft.json']))
 
   const index = readAgentsIndex()
   const known = new Map(index.map((item) => [item?.id, item]))
@@ -569,7 +572,7 @@ function installAgentFromDir(sourceDir, options = {}) {
 }
 
 /** Remove an agent package. Projects keep their `agentId` and stay openable. */
-function uninstallAgent(id) {
+export function uninstallAgent(id) {
   if (typeof id !== 'string' || !/^[A-Za-z0-9._-]+$/.test(id)) throw new Error(`invalid agent id: ${id}`)
   const dir = join(AGENTS_DIR, id)
   if (!existsSync(dir)) return { removed: false, id }
@@ -785,7 +788,7 @@ function boundSkillBlock(agents, skills) {
   return parts.join('\n\n')
 }
 
-function listBuiltinAvailable() {
+export function listBuiltinAvailable() {
   if (!existsSync(BUILTIN_AGENTS_DIR)) return []
   const installed = new Set(listAgents().map((agent) => agent.id))
   const out = []
@@ -979,6 +982,11 @@ export const LOOK_IDS = ['swiss-dynamic-type', 'blueprint', 'terminal-crt', 'hal
 export const PALETTE_NAMES = ['科技暗色', '终端绿', '霓虹紫', '极简白']
 const SUBTITLE_MODES = ['none', 'zh', 'en', 'bilingual']
 const ASPECTS = ['16:9', '9:16', '1:1']
+// Mirrors `MIN_DURATION_SEC` / `MAX_DURATION_SEC` in storyboard.ts. The planner
+// clamps too, but a value outside this range would be silently rewritten there,
+// so the Host refuses it up front and the panel can show the real bound.
+const MIN_DURATION_SEC = 10
+const MAX_DURATION_SEC = 300
 
 export function templateParams(template) {
   const tpl = template && typeof template === 'object' ? template : {}
@@ -1493,8 +1501,443 @@ function releaseSkills() {
   }
 }
 
-function routePath(url) {
-  const raw = String(url ?? '/')
+// ---------------------------------------------------------------------------
+// Forge — build a new agent package from a sentence.
+//
+// The scaffold is deterministic: the same goal always produces the same valid
+// package, with no model involved. That is deliberate. A model that is down,
+// rate-limited, or simply wrong must not be able to produce an agent that
+// installs and then renders nothing — so the offline path has to be *complete*,
+// and the model only rewrites prose (SKILL.md body, template briefs) on top.
+//
+// `validateDraft()` is the gate: it re-checks everything the runtime depends on,
+// including that the planner accepts the template's params. `POST .../install`
+// refuses to run unless validation is clean, so a broken draft can never reach
+// AGENTS_DIR.
+// ---------------------------------------------------------------------------
+
+const FORGE_TRACKS = [
+  { id: '1.1', name: '品牌片头', hint: '字标、几何推进、落板' },
+  { id: '1.2', name: '社媒短片', hint: '竖版卡点、卖点快剪' },
+  { id: '1.3', name: '数据解说', hint: '数字、图表、结论' },
+  { id: '1.4', name: '科普解说', hint: '概念、拆解、双语字幕' },
+  { id: '1.5', name: '产品演示', hint: '功能三连、界面特写' },
+]
+
+/** The shape a draft must satisfy. Returned to the panel so the wizard can show it. */
+export function forgeBlueprint() {
+  return {
+    tracks: FORGE_TRACKS,
+    looks: LOOK_IDS,
+    palettes: PALETTE_NAMES,
+    aspects: ASPECTS,
+    subtitles: SUBTITLE_MODES,
+    durations: [10, 15, 20, 25, 30, 45, 60],
+    bpms: [90, 100, 110, 120, 128, 140],
+    files: ['manifest.json', 'skills/<name>/SKILL.md', 'templates/<name>.template.json'],
+    constraints: [
+      'manifest.id 必须是 kebab-case，且与安装目录同名',
+      'manifest.templates 至少要有一个，每个都要有对应文件',
+      'template.defaults 必须能通过 normalizeParams，否则渲染会静默回落到默认值',
+      'SKILL.md 必须有 name / description frontmatter，name 与目录名一致',
+      '同一参数必须渲染出同一帧：不允许 Date.now() / Math.random()',
+    ],
+  }
+}
+
+/** Deterministic draft id: stable for the same goal so re-forging overwrites. */
+export function forgeDraftId(goal) {
+  return `f_${hashText(goal).toString(16).slice(0, 12)}`
+}
+
+export function forgeDraftDir(draftId) {
+  return join(FORGE_DIR, draftId)
+}
+
+/**
+ * Turn a free-text goal into an agent id.
+ *
+ * CJK has no ASCII fallback, so a pure-Chinese goal slugifies to nothing and we
+ * fall back to a hash suffix — an agent id must be addressable in a URL and a
+ * directory name, not pretty.
+ */
+function forgeAgentId(goal, trackId) {
+  const ascii = slugify(goal, '')
+  if (ascii && ascii.length >= 3) return `agent-${ascii.slice(0, 28)}`
+  const prefix = trackId ? `agent-${trackId.replace('.', '-')}` : 'agent'
+  return `${prefix}-${hashText(goal).toString(16).slice(0, 6)}`
+}
+
+function forgeLookForTrack(trackId) {
+  switch (trackId) {
+    case '1.1':
+      return 'one-line'
+    case '1.2':
+      return 'halftone-dossier'
+    case '1.3':
+      return 'blueprint'
+    case '1.4':
+      return 'swiss-dynamic-type'
+    case '1.5':
+      return 'terminal-crt'
+    default:
+      return 'swiss-dynamic-type'
+  }
+}
+
+function forgeAspectForTrack(trackId) {
+  return trackId === '1.2' || trackId === '1.1' ? '9:16' : '16:9'
+}
+
+/**
+ * Build the package files for a draft. Pure function of its inputs — no clock,
+ * no randomness, no model.
+ */
+export function scaffoldAgentPackage(spec) {
+  const {
+    goal,
+    agentId,
+    trackId,
+    look,
+    palette,
+    durationSec,
+    beatBpm,
+    subtitle,
+    aspect,
+    name,
+  } = spec
+
+  const track = FORGE_TRACKS.find((item) => item.id === trackId) ?? FORGE_TRACKS[0]
+  const displayName = name || `AiBench ${track.name}`
+  const skillName = `${agentId.replace(/^agent-/, '')}-run`.slice(0, 40)
+  const templateId = `${agentId.replace(/^agent-/, '')}.main`
+
+  // The params block must be exactly what normalizeParams accepts, otherwise the
+  // template silently falls back to hardcoded defaults and the agent "works" but
+  // ignores its own description.
+  const params = normalizeParams(
+    {
+      type: 0,
+      style: Math.max(0, LOOK_IDS.indexOf(look)),
+      palette: Math.max(0, PALETTE_NAMES.indexOf(palette)),
+      flow: 0,
+      durationSec,
+      beatBpm,
+      subtitle,
+      aspect,
+    },
+    aspect,
+  )
+
+  const manifest = {
+    id: agentId,
+    name: displayName,
+    version: '0.1.0',
+    description: `${track.name}：${goal}`.slice(0, 120),
+    tracks: [track.id],
+    license: 'MIT',
+    builtin: false,
+    engines: { aibench: '>=0.1.0', node: '>=22.19' },
+    capabilities: {
+      render: true,
+      voice: false,
+      subtitles: subtitle !== 'none',
+      bilingual: subtitle === 'bilingual',
+    },
+    defaults: params,
+    skills: [{ id: skillName, name: skillName, file: `skills/${skillName}/SKILL.md` }],
+    templates: [
+      {
+        id: templateId,
+        file: `templates/main.template.json`,
+        title: goal.slice(0, 40) || track.name,
+        track: track.id,
+      },
+    ],
+    runtime: { shared: ['remotion@4', 'react@19'], requires: [] },
+  }
+
+  const template = {
+    id: templateId,
+    title: (goal.slice(0, 40) || track.name).trim(),
+    track: track.id,
+    brief: goal,
+    durationSec: params.durationSec,
+    aspect: params.aspect,
+    style: {
+      look,
+      palette,
+      tokens: [look],
+      motion: 'cut-on-beat',
+      rhythm: params.beatBpm,
+      font: look === 'terminal-crt' || look === 'blueprint' ? 'mono' : 'inter',
+    },
+    audio: {
+      bgm: { bpm: params.beatBpm, mood: 'neutral' },
+      sfxSet: ['tick', 'reveal'],
+      voice: { mode: 'none', lang: 'zh' },
+      subtitles: { kind: params.subtitle },
+    },
+    beatMap: {
+      rule: '每个切点卡在整拍上',
+      notes: [`BPM ${params.beatBpm}`, `总长 ${params.durationSec} 秒`],
+    },
+    defaults: params,
+  }
+
+  const skill = `---
+name: ${skillName}
+description: ${track.name}流水线：${track.hint}。目标 —— ${goal.slice(0, 60)}
+---
+
+# ${displayName} · ${track.name}流水线
+
+${goal}
+
+## 你只能用这套动效语言
+
+look = \`${look}\`，palette = \`${palette}\`，画幅 ${params.aspect}，${params.durationSec} 秒，BPM ${params.beatBpm}，字幕 ${params.subtitle}。
+
+## 流水线
+
+1. **定钩子**：前 2 秒必须出现一个能记住的东西 —— 一个字标、一个数字，或一句短话。
+2. **拆结构**：把目标拆成 2–4 个信息块，每块一个视觉动作，不要塞第二个论点。
+3. **卡点**：切点一律落在整拍上。BPM ${params.beatBpm} 时 1 拍 = ${Math.round((60 / params.beatBpm) * 30)} 帧。
+4. **字幕**：硬字幕，单行尽量短；竖版比横版严格得多。
+5. **落版**：最后一格只放主题 + 一句副标题，不要塞第三个信息。
+6. **校验**：先出 still 看安全区，再出 mp4 听卡点。
+
+## 硬约束（违反即视为失败）
+
+- 30 fps，所有分镜帧数之和必须等于 \`totalFrames\`。
+- 每镜至少 12 帧，且相邻镜首尾相接。
+- 只用 \`bg\` / \`fg\` / \`accent\` 三色。
+- 禁止 \`Date.now()\` / \`Math.random()\`；随机一律来自 \`seed = hashText(brief)\`。
+- 结尾必须有落版帧，不能直接黑场结束。
+
+## 输出契约
+
+\`\`\`jsonc
+{
+  "brief": "${goal.slice(0, 50).replace(/"/g, "'")}",
+  "params": ${JSON.stringify(params)}
+}
+\`\`\`
+`
+
+  return {
+    manifest,
+    template,
+    skill,
+    paths: {
+      manifest: 'manifest.json',
+      template: 'templates/main.template.json',
+      skill: `skills/${skillName}/SKILL.md`,
+    },
+  }
+}
+
+export function writeDraftFiles(draftId, files) {
+  const dir = forgeDraftDir(draftId)
+  mkdirSync(dir, { recursive: true })
+  for (const [relPath, content] of Object.entries(files)) {
+    const target = join(dir, relPath)
+    mkdirSync(dirname(target), { recursive: true })
+    writeFileSync(target, content, 'utf8')
+  }
+  return dir
+}
+
+/** Read every package file in a draft, as posix relative paths. Used by the panel preview. */
+function readDraftFiles(draftId) {
+  const dir = forgeDraftDir(draftId)
+  if (!existsSync(dir)) return null
+  const out = []
+  const walk = (current, prefix) => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      // `draft.json` is the draft's own record (exposed as `meta`), not a file the
+      // agent package contains, so it must not be previewed as one.
+      if (!prefix && entry.name === 'draft.json') continue
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name
+      const full = join(current, entry.name)
+      if (entry.isDirectory()) walk(full, rel)
+      else if (entry.isFile()) out.push({ path: rel, content: readFileSync(full, 'utf8') })
+    }
+  }
+  walk(dir, '')
+  out.sort((a, b) => a.path.localeCompare(b.path))
+  return out
+}
+
+/**
+ * Check a draft the way the runtime will use it.
+ *
+ * Every assertion here maps to a failure that would otherwise be silent: a
+ * template whose defaults miss `normalizeParams` still renders, just not what the
+ * template says. `renderFrame` is off by default because it spawns Remotion.
+ */
+export async function validateDraft(draftId, options = {}) {
+  const dir = forgeDraftDir(draftId)
+  const errors = []
+  const warnings = []
+  const facts = {}
+
+  if (!existsSync(dir)) {
+    return { ok: false, errors: [`draft not found: ${draftId}`], warnings, facts }
+  }
+
+  // --- manifest -----------------------------------------------------------
+  const manifestPath = join(dir, 'manifest.json')
+  if (!existsSync(manifestPath)) {
+    errors.push('manifest.json is missing')
+    return { ok: false, errors, warnings, facts }
+  }
+  let manifest = null
+  try {
+    manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  } catch (e) {
+    errors.push(`manifest.json is not valid JSON: ${errorMessage(e)}`)
+    return { ok: false, errors, warnings, facts }
+  }
+
+  if (typeof manifest.id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(manifest.id)) {
+    errors.push('manifest.id must be kebab-case (a-z, 0-9, dash)')
+  }
+  if (typeof manifest.name !== 'string' || !manifest.name.trim()) errors.push('manifest.name is required')
+  if (typeof manifest.version !== 'string' || !/^\d+\.\d+\.\d+/.test(manifest.version)) {
+    errors.push('manifest.version must look like 1.0.0')
+  }
+  if (typeof manifest.description !== 'string' || !manifest.description.trim()) {
+    errors.push('manifest.description is required')
+  }
+  if (!Array.isArray(manifest.tracks) || manifest.tracks.length === 0) {
+    errors.push('manifest.tracks must list at least one track')
+  } else {
+    for (const track of manifest.tracks) {
+      if (!FORGE_TRACKS.some((item) => item.id === track)) {
+        warnings.push(`unknown track "${track}" — the panel filters on known tracks`)
+      }
+    }
+  }
+
+  // `defaults` feeds the renderer directly, so it must survive normalizeParams
+  // without losing the values the manifest claims.
+  const normalizedDefaults = normalizeParams(manifest.defaults ?? {}, manifest.defaults?.aspect)
+  if (!Number.isFinite(normalizedDefaults.durationSec)) errors.push('manifest.defaults.durationSec is not a number')
+  facts.defaults = normalizedDefaults
+
+  // --- templates ----------------------------------------------------------
+  const templates = Array.isArray(manifest.templates) ? manifest.templates : []
+  if (templates.length === 0) errors.push('manifest.templates must list at least one template')
+  facts.templates = []
+  for (const entry of templates) {
+    const rel = typeof entry === 'string' ? entry : entry?.file
+    const id = typeof entry === 'string' ? entry : entry?.id
+    if (!rel) {
+      errors.push(`template entry ${JSON.stringify(entry)} has no file`)
+      continue
+    }
+    const file = join(dir, rel)
+    if (!existsSync(file)) {
+      errors.push(`template file is missing: ${rel}`)
+      continue
+    }
+    let template = null
+    try {
+      template = JSON.parse(readFileSync(file, 'utf8'))
+    } catch (e) {
+      errors.push(`template ${rel} is not valid JSON: ${errorMessage(e)}`)
+      continue
+    }
+    if (typeof template.id !== 'string' || !template.id) errors.push(`template ${rel} has no id`)
+    if (typeof template.brief !== 'string' || !template.brief.trim()) {
+      errors.push(`template ${rel} has no brief`)
+    }
+    if (id && template.id && id !== template.id) {
+      warnings.push(`manifest lists template "${id}" but the file declares "${template.id}"`)
+    }
+    const params = templateDefaults(template)
+    const normalized = normalizeParams(params, template.aspect ?? params.aspect)
+    // A template that loses its look on the way to numbers renders as the default
+    // look — visually wrong, but with no error anywhere. Catch it here.
+    const claimedStyle = template.style?.look ?? template.style?.tokens?.[0]
+    if (claimedStyle && !LOOK_IDS.includes(claimedStyle)) {
+      errors.push(`template ${rel} names unknown look "${claimedStyle}"`)
+    }
+    const claimedPalette = template.style?.palette
+    if (claimedPalette && !PALETTE_NAMES.includes(claimedPalette)) {
+      errors.push(`template ${rel} names unknown palette "${claimedPalette}"`)
+    }
+    facts.templates.push({ id: template.id ?? id, file: rel, params: normalized })
+  }
+
+  // --- skills -------------------------------------------------------------
+  const skills = Array.isArray(manifest.skills) ? manifest.skills : []
+  if (skills.length === 0) warnings.push('manifest.skills is empty — this agent will have no pipeline to call')
+  facts.skills = []
+  for (const entry of skills) {
+    const rel = typeof entry === 'string' ? entry : entry?.file
+    const declaredName = typeof entry === 'string' ? null : entry?.name
+    if (!rel) {
+      errors.push(`skill entry ${JSON.stringify(entry)} has no file`)
+      continue
+    }
+    const file = join(dir, rel)
+    if (!existsSync(file)) {
+      errors.push(`skill file is missing: ${rel}`)
+      continue
+    }
+    const parsed = parseSkillFrontmatter(readFileSync(file, 'utf8'))
+    if (!parsed.meta.name) errors.push(`skill ${rel} has no frontmatter name`)
+    else if (!/^[a-z0-9][a-z0-9-]*$/.test(parsed.meta.name)) {
+      errors.push(`skill ${rel} name "${parsed.meta.name}" must be kebab-case`)
+    }
+    if (declaredName && parsed.meta.name && declaredName !== parsed.meta.name) {
+      errors.push(`skill ${rel} declares name "${parsed.meta.name}" but manifest says "${declaredName}"`)
+    }
+    if (!parsed.meta.description) errors.push(`skill ${rel} has no frontmatter description`)
+    if (!parsed.body.trim()) errors.push(`skill ${rel} body is empty`)
+    facts.skills.push({ name: parsed.meta.name, file: rel, chars: parsed.body.length })
+  }
+
+  // --- optional: prove a frame renders -----------------------------------
+  if (options.renderFrame && errors.length === 0) {
+    try {
+      const sb = await loadStoryboard()
+      const first = facts.templates[0]
+      const storyboard = trimStoryboard(sb.planStoryboard(manifest.defaults?.brief ?? '', first.params))
+      if (storyboard.totalFrames <= 0) errors.push('planner produced zero frames')
+      else facts.frames = storyboard.totalFrames
+    } catch (e) {
+      errors.push(`planner rejected the template params: ${errorMessage(e)}`)
+    }
+  }
+
+  return { ok: errors.length === 0, errors, warnings, facts }
+}
+
+export function readForgeDraft(draftId) {
+  const dir = forgeDraftDir(draftId)
+  if (!existsSync(dir)) return null
+  const meta = readJsonFile(join(dir, 'draft.json'), null)
+  const files = readDraftFiles(draftId) ?? []
+  return { id: draftId, dir, meta, files }
+}
+
+export function listForgeDrafts() {
+  if (!existsSync(FORGE_DIR)) return []
+  const out = []
+  for (const entry of readdirSync(FORGE_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const meta = readJsonFile(join(FORGE_DIR, entry.name, 'draft.json'), null)
+    if (!meta) continue
+    out.push({ id: entry.name, ...meta })
+  }
+  out.sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))
+  return out
+}
+
+function routePath(url) {  const raw = String(url ?? '/')
   const q = raw.indexOf('?')
   const path = q === -1 ? raw : raw.slice(0, q)
   const suffix = path.startsWith(BASE_PATH) ? path.slice(BASE_PATH.length) : path
@@ -1548,7 +1991,7 @@ async function handle(req, res) {
       },
       features: {
         permitGate: false,
-        forge: false,
+        forge: true,
         store: false,
         voice: false,
         director: !!(ctxRef?.get && ctxRef.get('llm')),
@@ -2125,6 +2568,197 @@ async function handle(req, res) {
     } catch (error) {
       sendError(res, 500, 'internal_error', errorMessage(error))
     }
+    return
+  }
+
+  // GET /forge/blueprint — the option tables the wizard renders.
+  if (method === 'GET' && path === '/forge/blueprint') {
+    sendJson(res, 200, { ok: true, blueprint: forgeBlueprint() })
+    return
+  }
+
+  // GET /forge/drafts — every draft on disk, newest first.
+  if (method === 'GET' && path === '/forge/drafts') {
+    sendJson(res, 200, { ok: true, items: listForgeDrafts() })
+    return
+  }
+
+  // POST /forge/drafts — scaffold a package from a goal, with no model involved.
+  if (method === 'POST' && path === '/forge/drafts') {
+    try {
+      const body = await readJsonBody(req)
+      const goal = typeof body.goal === 'string' ? body.goal.trim() : ''
+      if (!goal) {
+        sendError(res, 400, 'bad_request', 'goal is required')
+        return
+      }
+      const trackId = FORGE_TRACKS.some((t) => t.id === body.track) ? body.track : '1.3'
+      const look = LOOK_IDS.includes(body.look) ? body.look : forgeLookForTrack(trackId)
+      const palette = PALETTE_NAMES.includes(body.palette) ? body.palette : '科技暗色'
+      const aspect = ASPECTS.includes(body.aspect) ? body.aspect : forgeAspectForTrack(trackId)
+      const durationSec = clampNumber(body.durationSec, MIN_DURATION_SEC, MAX_DURATION_SEC, 20)
+      const beatBpm = clampNumber(body.beatBpm, 40, 240, 120)
+      const subtitle = SUBTITLE_MODES.includes(body.subtitle) ? body.subtitle : 'zh'
+
+      const draftId = forgeDraftId(goal)
+      const agentId = forgeAgentId(goal, trackId)
+      const built = scaffoldAgentPackage({
+        goal,
+        agentId,
+        trackId,
+        look,
+        palette,
+        durationSec,
+        beatBpm,
+        subtitle,
+        aspect,
+        name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : '',
+      })
+
+      writeDraftFiles(draftId, {
+        'manifest.json': JSON.stringify(built.manifest, null, 2),
+        [built.paths.template]: JSON.stringify(built.template, null, 2),
+        [built.paths.skill]: built.skill,
+      })
+
+      const meta = {
+        goal,
+        agentId,
+        track: trackId,
+        look,
+        palette,
+        aspect,
+        durationSec: Number(durationSec),
+        beatBpm: Number(beatBpm),
+        subtitle,
+        createdAt: nowIso(),
+        source: 'scaffold',
+      }
+      writeJsonFile(join(forgeDraftDir(draftId), 'draft.json'), meta)
+
+      const validation = await validateDraft(draftId)
+      const draft = readForgeDraft(draftId)
+      sendJson(res, 200, { ok: true, draft, validation })
+      return
+    } catch (error) {
+      sendError(res, 500, 'forge_failed', errorMessage(error))
+      return
+    }
+  }
+
+  // POST /forge/drafts/:id/refine — let a model rewrite the prose, then revalidate.
+  const refineMatch = path.match(/^\/forge\/drafts\/([A-Za-z0-9_-]+)\/refine$/)
+  if (refineMatch && method === 'POST') {
+    const draftId = refineMatch[1]
+    const draft = readForgeDraft(draftId)
+    if (!draft) {
+      sendError(res, 404, 'not_found', `unknown draft: ${draftId}`)
+      return
+    }
+    const llm = ctxRef?.get ? ctxRef.get('llm') : null
+    if (!llm) {
+      // No model is not an error here: the scaffold is already complete and valid.
+      const validation = await validateDraft(draftId)
+      sendJson(res, 200, {
+        ok: true,
+        refined: false,
+        reason: 'the llm service is unavailable in this Host runtime',
+        draft: readForgeDraft(draftId),
+        validation,
+      })
+      return
+    }
+    try {
+      const body = await readJsonBody(req)
+      const note = typeof body.note === 'string' ? body.note.trim() : ''
+      const system =
+        'You rewrite the SKILL.md body of a video-agent package. Keep every heading, every hard constraint, and the output-contract JSON block byte-identical. Reply with the new markdown only — no code fence, no commentary.'
+      const userText = [
+        `Goal: ${draft.meta?.goal ?? ''}`,
+        note ? `Additional instruction: ${note}` : '',
+        'Current SKILL.md:',
+        draft.files.find((f) => f.path.endsWith('SKILL.md'))?.content ?? '',
+      ]
+        .filter(Boolean)
+        .join('\n\n')
+
+      const result = await callLlmWithFallback(llm, system, userText)
+      let refined = false
+      let reason = result.ok ? null : 'every model route failed'
+      if (result.ok && result.text.trim()) {
+        const skillFile = draft.files.find((f) => f.path.endsWith('SKILL.md'))
+        if (skillFile && parseSkillFrontmatter(result.text).meta.name) {
+          writeFileSync(join(draft.dir, skillFile.path), result.text.trim() + '\n', 'utf8')
+          refined = true
+        } else {
+          reason = 'the model reply lost its frontmatter, so it was discarded'
+        }
+      }
+      const validation = await validateDraft(draftId)
+      sendJson(res, 200, {
+        ok: true,
+        refined,
+        reason,
+        attempts: result.attempts,
+        draft: readForgeDraft(draftId),
+        validation,
+      })
+      return
+    } catch (error) {
+      sendError(res, 500, 'forge_failed', errorMessage(error))
+    }
+    return
+  }
+
+  // GET /forge/drafts/:id
+  const draftMatch = path.match(/^\/forge\/drafts\/([A-Za-z0-9_-]+)$/)
+  if (draftMatch && method === 'GET') {
+    const draft = readForgeDraft(draftMatch[1])
+    if (!draft) {
+      sendError(res, 404, 'not_found', `unknown draft: ${draftMatch[1]}`)
+      return
+    }
+    const validation = await validateDraft(draftMatch[1])
+    sendJson(res, 200, { ok: true, draft, validation })
+    return
+  }
+
+  // POST /forge/drafts/:id/install — validate, then install as a real agent.
+  const installMatch = path.match(/^\/forge\/drafts\/([A-Za-z0-9_-]+)\/install$/)
+  if (installMatch && method === 'POST') {
+    const draftId = installMatch[1]
+    const draft = readForgeDraft(draftId)
+    if (!draft) {
+      sendError(res, 404, 'not_found', `unknown draft: ${draftId}`)
+      return
+    }
+    // The gate: a draft that fails validation never reaches AGENTS_DIR, because
+    // a half-valid package is worse than no package — it installs, then renders
+    // something nobody asked for.
+    const validation = await validateDraft(draftId)
+    if (!validation.ok) {
+      sendError(res, 409, 'invalid_draft', 'the draft failed validation', { errors: validation.errors })
+      return
+    }
+    try {
+      const result = installAgentFromDir(draft.dir, { overwrite: true, source: 'forge' })
+      const skillsSync = syncSkills()
+      sendJson(res, 200, { ok: true, ...result, validation, skills: skillsSync, agents: listAgents() })
+    } catch (error) {
+      sendError(res, 400, 'install_failed', errorMessage(error))
+    }
+    return
+  }
+
+  // DELETE /forge/drafts/:id
+  if (draftMatch && method === 'DELETE') {
+    const dir = forgeDraftDir(draftMatch[1])
+    if (!existsSync(dir)) {
+      sendError(res, 404, 'not_found', `unknown draft: ${draftMatch[1]}`)
+      return
+    }
+    rmSync(dir, { recursive: true, force: true })
+    sendJson(res, 200, { ok: true, removed: draftMatch[1] })
     return
   }
 
