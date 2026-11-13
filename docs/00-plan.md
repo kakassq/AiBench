@@ -510,7 +510,7 @@ icon: https://cdn.jsdelivr.net/gh/<you>/AiBench@main/packages/aibench/icon.svg
 - 15 道闸门全绿（`pnpm check`），且全部跑在一次性沙箱目录里
 - 内含 3 个内置 Agent / 9 个模板 / 5 栏导航 / Forge 造 Agent / SkillBridge / 脚本层 / 版式系统
 - 故宫 30 秒片：900 帧 / 1920×1080 / 30.000s / 3.76 MB，评审「balanced, finished, professional」
-- GitHub `kakassq/AiBench` 已上线（commit `495dd178`，163 文件）
+- GitHub `kakassq/AiBench` 已上线（commit `2b4d9249`，166 文件）
 - DSH 插件市场收录 PR 已提：[#14967](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14967)
 
 **待办：**

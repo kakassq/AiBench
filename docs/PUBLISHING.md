@@ -301,7 +301,7 @@ node <repo>/scripts/check-installed-layout.mjs ./node_modules/dsh-aibench
 
 | 通道 | 状态 | 位置 |
 |---|---|---|
-| GitHub | ✅ 已上线 | https://github.com/kakassq/AiBench（commit `d905b288`，163 文件，8 topics） |
+| GitHub | ✅ 已上线 | https://github.com/kakassq/AiBench（commit `2b4d9249`，166 文件，8 topics） |
 | DSH 插件市场 | ✅ PR 已提 | https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14967 |
 | npm | ❌ 不发 | 用户决定；首创新包只接受 Classic Automation token |
 
