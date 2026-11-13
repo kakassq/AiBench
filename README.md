@@ -111,6 +111,8 @@ pnpm add dsh-aibench
 - `check-installed-layout.mjs` —— 把 tgz 解到 `node_modules/dsh-aibench/` 下（模拟 npm 安装后的真实布局），验证插件能 import、渲染引擎能解析到包内的 `render/`、分镜规划器能跑。源码 checkout 里用符号链接，跑通不代表装得上。
 - `check-forge.mjs` —— 脚手架确定性（两次调用逐字节相同）、校验器能抓出坏 manifest / 未知 look / 无 frontmatter 的技能 / 缺失模板、安装后 `AGENTS_DIR` 里不带 `draft.json`。
 - `check-routes.mjs` —— 用假 `webServer` 捕获 `apply()` 注册的前缀路由，再用真 `req` 驱动它，断言状态码与 JSON 信封。`node --check` 抓不到的路由级 bug（例如 Host 里少一个常量）只有它能抓。
+- `forge-e2e.mjs` —— 把 Host 半部挂在真 http server 上，走完整用户旅程：造草稿 → 装成 Agent → 用它的模板建项目 → **真渲一帧 PNG**。Forge 造出来的 Agent 装得上却渲不出东西，是这条链路唯一值得防的失败。
+- `check-client-render.mjs` —— 用真 React + `renderToStaticMarkup` 把面板渲染一遍（agents / forge / tasks / settings 四页）。React 在渲染期抛的错（hook 顺序、未定义变量、`blueprint.subtitles.map` 这类首屏空数据）在这里变成失败，而不是浏览器里的白屏。
 
 完整发布步骤见 [docs/PUBLISHING.md](docs/PUBLISHING.md)。
 
@@ -134,6 +136,8 @@ scripts/check-storyboard-build.mjs  预编译产物与源码不漂移（108 组�
 scripts/check-installed-layout.mjs  从 npm 安装后的目录布局是否真能跑
 scripts/check-forge.mjs     Forge 脚手架 / 校验器 / 安装闸门回归
 scripts/check-routes.mjs    路由级回归（假 webServer 驱动真 req）
+scripts/forge-e2e.mjs       Forge 全链路端到端：造草稿 → 装 Agent → 建项目 → 真渲一帧
+scripts/check-client-render.mjs  用真 React 把四页渲染一遍（抓渲染期异常）
 scripts/check-all.mjs       串跑全部闸门（node scripts/check-all.mjs）
 scripts/publish-npm.mjs      registry API 发布（无需 npm CLI）
 scripts/publish-github.mjs   Git Data API 推仓库（无需 git）

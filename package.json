@@ -24,6 +24,8 @@
     "check:skills": "node scripts/check-skills.mjs",
     "check:forge": "node scripts/check-forge.mjs",
     "check:routes": "node scripts/check-routes.mjs",
+    "check:forge-e2e": "node scripts/forge-e2e.mjs",
+    "check:client": "node scripts/check-client-render.mjs",
     "check:build": "node scripts/check-storyboard-build.mjs",
     "check:installed": "node scripts/check-installed-layout.mjs",
     "check:icon": "node scripts/make-icon-png.mjs",

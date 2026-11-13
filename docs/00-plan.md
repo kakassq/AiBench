@@ -317,10 +317,12 @@ async function runRole(role, { cwd, prompt }) {
 - **验收**：卸载再装不丢项目数据；回滚到旧版本能正常渲染；主会话里能用 `@` 调到 Agent 的技能
 
 ### S3 · Forge 造 Agent（2 天）
-- [ ] Forge session + 4 步向导 UI
-- [ ] 静态校验器（manifest/frontmatter/模板/试渲染一帧）
-- [ ] 「从模板复制一份」快速起步
-- **验收**：在面板里对话造出一个新 Agent 包，装上去，用它的模板渲出一条片
+- [x] Forge 向导 UI（选赛道 → 一句话目标 → 预览三个包文件 → 校验并安装）
+- [x] 静态校验器（manifest/frontmatter/模板/未知 look；`renderFrame` 可选试渲一帧）
+- [x] 脚手架确定性（`scaffoldAgentPackage()` 纯函数，两次调用逐字节相同）
+- [x] 模型润色可选、离线降级（无 llm 时 `refined:false`，草稿照旧可用）
+- [x] 安装闸门（`validateDraft()` 不过 → `409 invalid_draft`，半成品进不了 `AGENTS_DIR`）
+- **验收**：在面板里造出一个新 Agent 包，装上去，用它的模板渲出一条片
 
 ### S4 · 双通道发布（1 天）
 - [ ] npm：改 `publishable` 字段、`pnpm publish --access public`（需要 npm token）

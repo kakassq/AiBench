@@ -1687,7 +1687,19 @@ window.__ModuleLoader__.load({
     function makeForge(store, t, zh) {
       const zhNow = () => (store.get().settings && store.get().settings.locale ? String(store.get().settings.locale).toLowerCase().indexOf('en') !== 0 : zh)
       return function Forge(props) {
-        const blueprint = props.blueprint || { tracks: [], looks: [], palettes: [], aspects: [], durations: [], bpms: [] }
+        // Every list the page iterates must exist here: the first paint happens
+        // before `/forge/blueprint` resolves, and a missing key would throw
+        // inside the render instead of showing an empty picker.
+        const blueprint = props.blueprint || {
+          tracks: [],
+          looks: [],
+          palettes: [],
+          aspects: [],
+          durations: [],
+          bpms: [],
+          subtitles: [],
+          constraints: [],
+        }
         const drafts = props.drafts || []
         const draft = props.draft
         const validation = props.validation

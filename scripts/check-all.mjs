@@ -13,11 +13,13 @@ const root = join(here, '..')
 const gates = [
   ['check-timeline', ['scripts/check-timeline.mjs']],
   ['check-sections', ['scripts/check-sections.mjs']],
+  ['check-client-render', ['scripts/check-client-render.mjs']],
   ['check-templates', ['scripts/check-templates.mjs']],
   ['check-director', ['scripts/check-director.mjs']],
   ['check-skills', ['scripts/check-skills.mjs']],
   ['check-forge', ['scripts/check-forge.mjs']],
   ['check-routes', ['scripts/check-routes.mjs']],
+  ['forge-e2e', ['scripts/forge-e2e.mjs']],
   ['check-storyboard-build', ['scripts/check-storyboard-build.mjs']],
   ['check-installed-layout', ['scripts/check-installed-layout.mjs']],
   ['make-icon-png', ['scripts/make-icon-png.mjs']],
