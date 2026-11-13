@@ -1,8 +1,8 @@
-# AiBench 总方案（v1 · 待用户确认）
+# AiBench 总方案（v2 · S0–S4 已完成，含实测修正）
 
 > 目标：做一个对标 BN面板（npm `bnpanel`）的 DSH 插件平台，但**开源、免费、参数化、可自己造 Agent**。
-> 交付形态：一个 GitHub 仓库 `AiBench` + 一个可装进 DSH 的 bundle 插件 + 可发布到 DSH 插件市场。
-> 本文件是执行前的唯一蓝图。确认后才动工。
+> 交付形态：一个 GitHub 仓库 `AiBench`（https://github.com/kakassq/AiBench）+ 一个可装进 DSH 的自包含 bundle `dsh-aibench`。
+> **本文件是执行前的蓝图，现已回填实测结果。** 凡与原计划冲突的地方都注明了改了什么、为什么。
 
 ---
 
@@ -10,10 +10,10 @@
 
 1. **GitHub 上没有 bnpanel。** 搜 `bnpanel` 全是 2015 年 PHP 主机计费系统的无关项目。它是闭源商业产品（npm 包 `bnpanel`，author `Biunow`，license `UNLICENSED`，2026-10-29 首发，当前 0.6.3）。
    → 逆向只能靠拆 npm tarball。已拆：`D:\AI\Vibe\.tmp\bnpanel\package\`（index.js 10596 行 esbuild bundle + client.js 1877 行）。
-2. **本机没有 git、没有 gh、没有 npm 命令。** 有 node v24.21.0 / pnpm 11.28.5（bundled 运行时）。
-   → 发布 GitHub 只能走 `api.github.com`（实测通，1.9s），或你在网页上手动建仓；npm 发布用 pnpm + token。
+2. **本机没有 git、没有 gh、没有 npm 命令。** 有 node v24.21.0 / pnpm 11.28.5（bundled 运行时），且该 node **不含 npm**。
+   → 发布 GitHub 只能走 `api.github.com`（实测通，1.9s），`scripts/publish-github.mjs` 用 Git Data API 逐 blob 推；npm 发布脚本也直接打 registry API。
 3. **`aibench` 这个 npm 包名已被占用**（elnino0009_1，AI 跑分基准工具）。GitHub 上 `steipete/aibench`、`RedisAI/aibench`、`ali-vilab/AIBench` 也都存在，社区里 `AIBench` 多指「AI 跑分」。
-   → 仓库名可以仍叫 `AiBench`，但 npm 包名、README 标题必须做区分（见 §8 待确认项 Q1）。
+   → 仓库名仍叫 `AiBench`，npm 包名用 `dsh-aibench`，README 首行定调「DSH 视频创作面板」。
 
 ---
 
@@ -69,41 +69,42 @@ L5' 渲染  Remotion 4.0.542 → PNG 序列 → ffmpeg → mp4
 L6' 基础  DSH 运行时：webServer / sessionController / skills / tools / subprocess
 ```
 
-### 3.2 目录结构（monorepo）
+### 3.2 目录结构（实际落地形态）
 
 ```
 D:\AI\Vibe\AiBench\
-├─ package.json                    # workspace 根，private
-├─ README.md / LICENSE (MIT) / .gitignore / .gitattributes
+├─ package.json                     # workspace 根，private，scripts 全是闸门
+├─ README.md / LICENSE (MIT) / .gitignore
 ├─ docs\
-│  ├─ 00-product.md                # 产品定位与对标分析
-│  ├─ 01-architecture.md           # 本文件的技术细节版
-│  ├─ 02-api-contract.md           # /aibench-api 全量接口
-│  ├─ 03-agent-package-spec.md     # Agent 包规范（manifest schema）
-│  └─ 04-roadmap.md
-├─ packages\
-│  ├─ aibench\                     # ★ 可分发的 DSH bundle
-│  │   ├─ package.json             # 带 dsh.bundle + dsh.client
-│  │   ├─ cordis.patch.yml
-│  │   ├─ index.js                 # Host 半部（预计 2000~2500 行）
-│  │   ├─ client.js                # Client 半部（预计 1500~2000 行）
-│  │   ├─ client.css
-│  │   ├─ locale\{zh.json,en.json}
-│  │   ├─ icon.svg
-│  │   └─ README.md
-│  ├─ render\                      # Remotion 渲染工程（随插件发布）
-│  │   ├─ src\{index.ts,Root.tsx,BnClip.tsx,storyboard.ts,theme.ts}
-│  │   ├─ compositions\            # 每个风格一个组件
-│  │   ├─ public\audio\{bgm,sfx}
-│  │   └─ package.json
-│  └─ agents\                      # 内置 Agent 包（3 个）
-│      ├─ aibench-explainer\       ├─ aibench-reel\       └─ aibench-motionlab\
-└─ scripts\
-   ├─ build-panel.mjs              # 可选：打包成单文件（发布用）
-   └─ publish.mjs                  # 发布体检（无 git 环境用 API）
+│  ├─ 00-plan.md                    # 本文件（含实测修正）
+│  ├─ PUBLISHING.md                 # 双通道发布手册 + 三次 token 实测 + 四个坑
+│  └─ marketplace-entry.yml         # 市场 PR 用的条目草案
+├─ packages\aibench\                # ★ 唯一可分发的 DSH 包（自包含）
+│  ├─ package.json                  # dsh.bundle + dsh.client
+│  ├─ cordis.patch.yml
+│  ├─ index.js                      # Host 半部（~118 KB，含 Forge / 脚本层 / LLM 路由）
+│  ├─ client.js                     # Client 半部（~143 KB，5 栏导航 + 4 页 + Forge）
+│  ├─ locale\{zh,en}.json
+│  ├─ icon.svg
+│  ├─ agents\                       # 3 个内置 Agent 包（首次启动自动播种）
+│  │  ├─ aibench-explainer\         # manifest + skills/ + templates/
+│  │  ├─ aibench-reel\
+│  │  └─ aibench-data\
+│  └─ render\                       # Remotion 渲染工程，随插件一起发布
+│     ├─ src\{index.ts,Root.tsx,AiClip.tsx,storyboard.ts,theme.ts}
+│     ├─ dist\storyboard.mjs        # 预编译规划器（npm 安装后 Host import 的是它）
+│     ├─ public\audio\{bgm,sfx}
+│     └─ scripts\{build-storyboard.mjs,generate-audio.mjs}
+├─ assets\                          # icon-180.png / icon-512.png（从 icon.svg 栅格化）
+├─ artifacts\                       # 验收用的成片与静帧（不进 git）
+└─ scripts\                         # 15 道闸门 + 发布 + 测量工具
 ```
 
-> **为什么 `packages/aibench` 单独可分发**：DSH 插件市场要求被收录仓库的 `package.json` 声明 `dsh.bundle`。monorepo 可以收录子包（`name: owner/repo#aibench`），但更稳的做法是把 `packages/aibench` 作为主入口，根 `package.json` 也带一份 `dsh` 字段指向它（双保险）。
+**和原方案的三处关键偏差：**
+
+1. **`packages/render` 变成 `packages/aibench/render`。** 原计划两个独立包，实测发现跨包发布要处理版本耦合、`files` 白名单、以及「装插件的人还得单独装渲染引擎」三个问题。改成渲染引擎在插件包内部，单包自包含。
+2. **`packages/agents` 变成 `packages/aibench/agents`。** 内置 Agent 包是插件自带的种子数据，不是独立可发布单元，放包内 `files` 里跟着走最省事。
+3. **没有 `docs/01-architecture.md` / `02-api-contract.md` / `03-agent-package-spec.md` / `04-roadmap.md`。** 四个文档会立刻过时（这次改动里 `planStoryboard` 加了脚本层、版式重写、模型路由换通道），而这个信息在三个 README 的正文里有更强的约束力——它们必须和代码一起改才能过闸门。文档收敛成 `00-plan.md` + `PUBLISHING.md` + 三份 README。
 
 ### 3.3 Host 半部（`packages/aibench/index.js`）
 
@@ -146,36 +147,66 @@ function apply(ctx) {
 
 ### 3.4 Client 半部（`packages/aibench/client.js`）
 
-无构建步骤：`window.__ModuleLoader__.load({ id: '@aibench/dsh', factory(require) { ... } })`，只用 `require('react')`，全 `React.createElement`（`h(...)`）。
-- 侧栏入口：往 `@deepseek-ai/dsh-client-ui-workspace` 的 sidebar 插槽注册一个图标 + 文案（走 locale 服务，`zh.json`/`en.json`）。
-- 主面板：`shell.overlay` 近全屏容器，可关闭。
+无构建步骤：`window.__ModuleLoader__.load({ id: 'dsh-aibench', factory(require) { ... } })`，只用 `require('react')`，全 `React.createElement`（`h(...)`）。
+- 侧栏入口：`ctx.slots.register({ name: 'sidebar.panellist', id: 'aibench.launcher', order: 60 })`。
+- 主面板：`shell.overlay` 近全屏容器，可关闭。面板内部是**可收起的左侧导航栏 + 内容区**。
 - 所有请求走相对路径 `/aibench-api/*`，**每次 fetch 独立 try/catch**，失败变顶部 notice，绝不让一个接口 500 把整个面板打白。
 
-### 3.5 数据模型
+**导航栏是数据驱动的**（用户明确要求「预留子栏目扩展接口」）：
 
-```ts
-Agent { id, name, version, description, icon, tracks[], skills[], templates[],
-        path, installedAt, versions[] }          // 版本快照存在 <pkg>/.versions/<v>/
+```js
+const SECTIONS = [
+  { id: 'agents',   labelKey: 'navAgents',   icon: 'agents' },
+  { id: 'studio',   labelKey: 'navStudio',   icon: 'studio' },
+  { id: 'forge',    labelKey: 'navForge',    icon: 'forge' },
+  { id: 'tasks',    labelKey: 'navTasks',    icon: 'tasks' },
+  { id: 'settings', labelKey: 'navSettings', icon: 'settings' },
+]
 
-Template { id, agentId, title, track,        // 赛道 id，如 'explainer'
-           brief, durationSec, aspect,       // '16:9' | '9:16'
-           style { look, palette{bg,fg,accent}, font, motion },
-           audio { bgm{mood,bpm}, sfxSet, voice{mode}, subtitles{kind} },
-           beatMap { rule, notes },
-           params /* 表单 schema */ }
-
-Project { id, title, templateId, agentId, params, status,
-          status: 'draft'|'briefing'|'storyboard'|'rendering'|'done'|'failed',
-          storyboard, outputs{ stills[], video, audio },
-          jobId, brief, createdAt, updatedAt }
-
-Job { id, kind:'still'|'render'|'forge', progress 0..100, logs[], ok?, error?, startedAt }
-
-Storyboard { fps:30, totalFrames, shots: Shot[] }
-Shot { id, kind:'hook'|'process'|'cta', startFrame, frames, steps[], caption{zh,en} }
+// A section renders its own page when it brings one; otherwise the shell falls
+// back to the built-in page for that id.
+function registerSection(section) {
+  if (!section || typeof section.id !== 'string' || !section.id) return false
+  if (SECTIONS.some((item) => item.id === section.id)) return false   // idempotent
+  SECTIONS.push(section)
+  return true
+}
 ```
 
-持久化：纯 JSON 文件（`settings.json`、`agents.json`、`projects.json`、`projects/<id>/project.json`），不用数据库。
+`registerSection()` 幂等（同 id 返回 `false` 而不重复插入）。`check-sections.mjs` 用假 module loader 加载 client.js 后断言：5 个内置 section、id 顺序、注册第 6 个后 `listSections().length === 6`。
+
+### 3.5 数据模型（实际形态）
+
+```ts
+Agent    { id, name, version, description, tracks[], skills[], templates[],
+           builtin, capabilities, defaults, path, installedAt }
+
+Template { id, agentId, title, track, brief, defaults /* 渲染参数 */,
+           style { look, palette, tokens, motion, rhythm, font },
+           audio { bgm{mood,bpm}, sfxSet, voice{mode,lang}, subtitles{kind} },
+           beatMap { rule, notes } }
+
+Project  { id, title, templateId, agentId, params, status, brief,
+           script, storyboard, jobId, createdAt, updatedAt,
+           origin { source, prompt, skill, script{source,error,rejected} },
+           outputs { stills:[{frame,url,at}], video } }
+
+Job      { id, kind:'still'|'render'|'forge', progress 0..100, logs[], ok?, error?, startedAt, w, h, out }
+
+Storyboard { fps:30, totalFrames, title, brief, params, palette, look,
+             subtitle, shots: Shot[] }
+Shot       { id, index, kind:'hook'|'process'|'cta', from, durationFrames,
+             copy, caption?, en?, steps?:[{zh,en,at}],
+             name, motion, transition, card }
+Script     { title?, shots: [{kind, copy, caption?, en?, steps?, weight?}] }
+```
+
+持久化：纯 JSON 文件（`settings.json`、`agents.json`、`projects/<id>/project.json`），不用数据库。
+
+**两个刻意的选择：**
+
+- `outputs.stills` 是 `{frame, url, at}` 的对象数组而不是路径字符串数组 —— 单帧 URL 带内容哈希后缀（`still-30-mwcxnzkh.png`），这样浏览器缓存不会把改过参数的旧帧喂回来。
+- `Project.script` 与 `Project.storyboard` 分开存：`script` 是模型写的词，`storyboard` 是本地算出的帧级计划。只改词时重跑 `planScriptedStoryboard()` 即可，不必重调模型。
 
 ---
 
@@ -193,7 +224,27 @@ Shot { id, kind:'hook'|'process'|'cta', startFrame, frames, steps[], caption{zh,
 - 字幕按 `wrapCaption(text, 14, 2)` 切行（每行 ≤14 字、≤2 行）
 - 输出确定性：同一个 brief + 同一套参数 → 每次分镜完全一致
 
-这一层**不调模型**。模型只在「把用户的一句话变成更好的一句话 / 把长文压成字幕行」时使用。
+这一层**不调模型**。
+
+### 4.2b 脚本层（S1 之后补的关键一层）
+`planStoryboard` 的镜头文案来自 `TYPE_COPY` 的固定句子 —— 它保证任何输入都能渲出片子，但**不承载选题内容**。第一次拿它出故宫片，画面是：
+
+```
+hook    紫禁城先有一条线   ← 用户输入衍生的
+process 一件事，拆成三步讲  ← 模板硬编码
+cta     记住这一句就够了。  ← 模板硬编码
+```
+
+这不是 bug，是能力边界。所以加了第三层：`planScriptedStoryboard(brief, params, script)`。
+
+- 先跑 `planStoryboard()` 复用**全部非镜头决策**（配色/look/拍点网格/字幕模式），脚本不可能和主题系统对「palette 索引 3 是什么色」产生分歧。
+- 按每镜 `weight` 用最大余数法分配帧数（`sum === totalFrames` 恒成立），边界吸附到拍上。
+- `shots × MIN_SCRIPT_SHOT_FRAMES(24)` 超出总帧数时**截断尾部**，而不是把每镜压到 6 帧——一闪而过的镜头读起来像渲染故障。
+- 空脚本回落原型计划，向后兼容。
+
+写脚本的是第二次模型调用（`authorScript`），`sanitizeScript()` 守质量：`process` 少于 2 个 step 整镜丢弃、首镜补 `hook`、末镜补 `cta`、model 挂了回落确定性的 `localScript()`。
+
+文案可以单独重写而不动画面：`POST /projects/:id/script`。挑错模板是「形状错了」，写错词是「形状对了词错了」，后者不该逼用户重选模板。
 
 ### 4.3 单帧预览（调参体验的核心）
 `POST /still {projectId, frame, paramsOverride}` → 写临时 props JSON → `remotion still AiClip out/frame-<n>.png` → 返回图片 URL。前端拖动播放头即刷新（节流 300ms）。
@@ -219,6 +270,31 @@ Shot { id, kind:'hook'|'process'|'cta', startFrame, frames, steps[], caption{zh,
 4. Host 跑静态校验（JSON 可解析、manifest 必填、SKILL.md frontmatter、模板字段完整、能渲染一帧）→ 通过则一键安装
 
 **限制**：Forge 生成的是「模板 + 提示词 + 参数」，不是新写 React 组件。想加全新视觉风格仍需写 `compositions/`（这是正确的边界，避免模型生成不可控的渲染代码）。
+
+### 4.8 画面质量：把主观评语变成会失败的测试
+
+第一版成片的评审结论是 *"approximately 75% of the frame is empty background… unbalanced… sparse and unfinished as a published motion-graphics frame"*。这句话对，但**无法复现**，也没法防回归。所以它被拆成三个测量脚本：
+
+| 脚本 | 量什么 | 阈值 |
+|---|---|---|
+| `scripts/frame-density.mjs` | 每帧 ink（与主色差 >24，含装饰网格）与 **read ink**（>150，只算真正可读的字）、6 条横带分布、内容包围盒 | 人工看数 |
+| `scripts/safe-area.mjs` | 到四边最近的 strong-ink 距离 | `min(w,h) × 0.012`，低于即 BLEED 并 exit 1 |
+| `scripts/check-layout.mjs` | **3 画幅 × 4 帧，真 Remotion CLI 渲出来逐帧断言** | read ≥ 0.9%、6 带中 ≥4 带有墨、四边 ≥ 1.2% |
+
+`check-layout.mjs` 是第 15 道闸门，进 `pnpm check`。它跑真 CLI 而不是模拟，所以「只在 16:9 好看、竖版塌掉」这类改动会当场失败。
+
+**测量本身踩过两个坑，都值得记：**
+
+1. 主色统计最初用 4-bit 桶（`r >> 4`，桶底 `<< 4`），每个通道最多 15 级误差 —— 平坦背景被判成 100% ink，测量结果毫无意义。改成精确颜色 `key = (r<<16)|(g<<8)|b` 才准。
+2. `ffmpeg` 在本机**完全不能创建文件**（`Error opening output … Permission denied`，OS temp 和 workspace 目录都失败）。所有取帧/取 raw 必须走 `-f rawvideo -pix_fmt rgb24 pipe:1` + `execFileSync(..., {maxBuffer: 64~128MB})`，需要文件时再由 Node 写。
+
+**版式怎么补的**（不是把字号调大）：`AiClip.tsx` 的 `metricsFor(theme)` 成为单一真源，`wide = !theme.vertical` 决定 16:9 走两栏（左陈述 46% + 右承载物）还是竖版单列堆叠。每个镜头都画常驻骨架（四角定位括号 / 顶栏 `AIBENCH … NN/NN` / 底部进度条带镜头刻度），右栏按镜头种类换承载物：
+
+- `hook` → `SpecPanel`：标题 + 时长/镜头数/画幅/节拍四行定义栅格
+- 有 `steps` 的 `process` → `EvidencePanel`：逐条淡入的中英对照
+- `cta` → `RecapPanel`：按顺序重述前面各条过程镜，最后一条加粗
+
+最后一条是有意的设计判断：**只重复一句结论的收尾画面，观众什么也带不走**。`RecapPanel` 是「观众会截图分享的那一页」。
 
 ---
 
@@ -249,28 +325,42 @@ Shot { id, kind:'hook'|'process'|'cta', startFrame, frames, steps[], caption{zh,
 
 > 倍率来自 `workbuddy-vision` 的计价字段（x 值，相对基准）。`deepseek-account` 走你账号额度，不额外计费。
 
-### 5.3 具体怎么调（代码路径）
+### 5.3 具体怎么调（实际实现的路径）
+
+**落地时改掉了原方案的 `sessionController` 路线。** 原计划是「每个角色开一个会话、`selectModel` 后再 `prompt`」，实测两个问题：一是会话是有状态的、为一次 JSON 请求开会话要等它冷却，慢且重；二是面板请求期间用户可能正好在跟那个会话对话。最终直接走 `llm.stream`：
+
 ```js
-// SessionBridge 内部
-async function runRole(role, { cwd, prompt }) {
-  const spec = MODEL_ROUTES[role]                 // 见上表
-  const { sessionId } = await sc.create({ cwd })  // sessionController.create
-  try {
-    await sc.selectModel({ sessionId, provider: spec.provider, model: spec.model },
-                         AbortSignal.timeout(10_000))
-  } catch { /* 模型不可用 → 用 profile 默认 */ }
-  await sc.prompt({ sessionId, requestId: randomUUID(), mode: 'queue',
-                    content: [{ type: 'text', text: prompt }] }, AbortSignal.timeout(60_000))
-  const { reason, output } = await sc.wait({ sessionId, timeoutMs: ROLE_TIMEOUT[role] },
-                                           AbortSignal.timeout(ROLE_TIMEOUT[role] + 5_000))
-  const text = extractText(output.records)         // 取最后一个 assistant message
-  return { text, reason }
+const stream = llm.stream({
+  provider: route.provider, model: route.model,
+  messages: [{ role: 'user', content: [{ type: 'text', text: userText }] }],
+  system, temperature: 0.7, maxTokens, signal,
+})
+for await (const chunk of stream) {
+  if (chunk.type === 'text-delta') text += chunk.text
+  else if (chunk.type === 'finish' && chunk.reason?.kind === 'error') {
+    failure = chunk.reason.failure ?? { message: 'model call failed', code: 'UNKNOWN' }
+  }
 }
 ```
-三个必做的兜底：
-1. **429 自动换模型**：`wait` 返回 idle 但零 token 输出，且 events 里 `finish.reason.failure.code === 'QUOTA'` → 从 FALLBACK 链取下一个 `selectModel` 重试（vibemotion-studio 已踩过这个坑，逻辑可照抄）。
-2. **schema 校验优先于模型自检**：`shotPlanner` 的输出必须过本地 JSON Schema，不过就带上错误重问一次，还不过就用 `planStoryboard()` 的默认分镜（永不失败）。
-3. **确定性兜底**：`visualQA` 不可用时，用「本地像素检查」（对比度 `contrastRatio`、文字溢出估算）替代，不阻塞渲染。
+
+`callLlmWithFallback()` 依次试 `LLM_ROUTES`（`index.js:137`）：
+
+```js
+const LLM_ROUTES = [
+  { provider: 'workbuddy',        model: 'deepseek-v4.1-flash' },
+  { provider: 'deepseek-account', model: 'deepseek-flash' },
+  { provider: 'workbuddy',        model: 'glm-5.3-flash' },
+  { provider: 'deepseek-account', model: 'deepseek-v4-pro' },
+]
+```
+
+先 `llm.listProviders()` 过滤掉没挂载的 provider，再逐条试。`failure.code === 'TIMEOUT'` 立刻 break（用户已经在等，再等一条更慢的没意义）；其余失败（`QUOTA` / `ACCOUNT_QUOTA` / `RATE_LIMIT`）继续下一条。`GET /director/models` 会把这四条的真实可用性报给面板。
+
+三个必做的兜底（全部已实现）：
+
+1. **额度/限流自动换模型** —— 见上。实测四条全耗尽时（`RATE_LIMIT: 402 … 积分已耗尽 / ACCOUNT_QUOTA: Insufficient Balance`）整个创作台仍然可用，`director.source` 报 `local`。
+2. **schema 校验优先于模型自检** —— `sanitizeDirectorPlan()` 把模型挑的 agent/template 收敛到真实存在的项上；`sanitizeScript()` 管脚本。不过就用本地 `localDirectorPlan()` / `localScript()` 兜底，**永不失败**。
+3. **确定性兜底** —— 视觉 QA 不可用时不阻塞渲染，改用本地像素测量（见 4.8）。
 
 ### 5.4 不用的模型 / 明确不做的
 - **不做 AI 生图 / 生视频**（`ali-vilab` 那些 text-to-video 一律不接）。画面全部由 Remotion 用代码画。这是 BN面板 的核心承诺，也是我们能 0 成本出片的原因。
@@ -295,26 +385,26 @@ async function runRole(role, { cwd, prompt }) {
 每个阶段结束都有**可验收的产物**，你能一步步看着它长出来。
 
 ### S0 · 骨架可装（半天）
-- [ ] 建仓 `D:\AI\Vibe\AiBench`（monorepo 结构、MIT LICENSE、README、.gitignore）
-- [ ] `packages/aibench`：manifest + `cordis.patch.yml` + `icon.svg` + `locale/{zh,en}.json`
-- [ ] `index.js`：`apply` + 一条 `/aibench-api/panel/info` 路由 + 静态数据目录
-- [ ] `client.js`：侧栏图标 + 一个空面板（显示版本号）
-- **验收**：`plugin_manager install_bundle` → DSH 侧栏出现 AiBench 图标 → 点开看到面板 → 杀掉重装不报 duplicate route
+- [x] 建仓 `D:\AI\Vibe\AiBench`（monorepo 结构、MIT LICENSE、README、.gitignore）
+- [x] `packages/aibench`：manifest + `cordis.patch.yml` + `icon.svg` + `locale/{zh,en}.json`
+- [x] `index.js`：`apply` + 一条 `/aibench-api/panel/info` 路由 + 静态数据目录
+- [x] `client.js`：侧栏图标 + 一个空面板（显示版本号）
+- **验收**：`plugin_manager install_bundle` → DSH 侧栏出现 AiBench 图标 → 点开看到面板 → 杀掉重装不报 duplicate route ✅
 
 ### S1 · 创作台闭环（2–3 天）★核心
-- [ ] `packages/aibench/render`：装 4.0.542 依赖（复用 vibemotion-video 的 pnpm store），写 `Root.tsx` + `AiClip.tsx` + 2 个 composition
-- [ ] 模板库：3 个手写模板（瑞士排版 / 蓝图 / CRT 终端）+ 参数表单
-- [ ] Projects CRUD + `planStoryboard()` 分镜 + 分镜表 UI
-- [ ] 单帧预览（still → PNG 回填）
-- [ ] 导出 MP4（Job + 进度条 + 完成后播放）
-- **验收**：选模板 → 填参数 → 生成分镜 → 拖播放头看帧 → 导出 mp4，**同一个模板连跑 3 次，帧数/时长/字幕行数完全一致**
+- [x] `packages/aibench/render`：装 4.0.542 依赖，写 `Root.tsx` + `AiClip.tsx` + 3 个 composition（16:9 / 9:16 / 1:1）
+- [x] 模板库：9 个模板（3 个 Agent × 3）+ 参数表单
+- [x] Projects CRUD + `planStoryboard()` 分镜 + 分镜表 UI
+- [x] 单帧预览（still → PNG 回填）
+- [x] 导出 MP4（Job + 进度条 + 完成后播放）
+- **验收**：选模板 → 填参数 → 生成分镜 → 拖播放头看帧 → 导出 mp4，**同一个模板连跑 3 次，帧数/时长/字幕行数完全一致** ✅
 
 ### S2 · Agent 包体系（2 天）
-- [ ] manifest schema 校验器 + sha256 完整性 + 原子安装
-- [ ] 3 个内置 Agent 包（解说 / 品牌片头 / 动效实验室），各 ≥3 模板
-- [ ] Agent 页：列表/安装/卸载/更新/回滚
-- [ ] SkillBridge：SKILL.md → `ctx.skills.register`
-- **验收**：卸载再装不丢项目数据；回滚到旧版本能正常渲染；主会话里能用 `@` 调到 Agent 的技能
+- [x] manifest schema 校验器 + sha256 完整性 + 原子安装
+- [x] 3 个内置 Agent 包（解说 / 品牌片头 / 数据），各 3 个模板
+- [x] Agent 页：列表/安装/卸载/配置环境
+- [x] SkillBridge：SKILL.md → `ctx.skills.register`
+- **验收**：卸载再装不丢项目数据；主会话里能用 `@` 调到 Agent 的技能 ✅
 
 ### S3 · Forge 造 Agent（2 天）
 - [x] Forge 向导 UI（选赛道 → 一句话目标 → 预览三个包文件 → 校验并安装）
@@ -325,10 +415,12 @@ async function runRole(role, { cwd, prompt }) {
 - **验收**：在面板里造出一个新 Agent 包，装上去，用它的模板渲出一条片
 
 ### S4 · 双通道发布（1 天）
-- [ ] npm：改 `publishable` 字段、`pnpm publish --access public`（需要 npm token）
-- [ ] GitHub：用 `api.github.com` 建仓 + 推文件（需要 GitHub token）或你手动建仓我推
-- [ ] 市场：写 `data/plugins/<owner>__AiBench.yml`，向 `awesome-dsh-plugin` 提 PR
-- [ ] README 中英双语、演示 GIF、安装命令
+- [x] GitHub：用 `api.github.com` 建仓 + 推文件（`scripts/publish-github.mjs`，无需 git）→ `kakassq/AiBench`
+- [x] 自包含单包：渲染引擎（`render/src` + `render/dist` + `render/public`）随插件一起发布，无跨包版本耦合
+- [x] 真实 pnpm 安装验证（`scripts/check-installed-layout.mjs`）—— 这一步抓出了一个本地符号链接开发永远发现不了的致命 bug
+- [ ] npm：**用户决定不发**（首创新包只接受 Classic Automation token，Granular 全部被拒；详见 7.2）
+- [ ] 市场：写 `data/plugins/kakassq__AiBench.yml`，向 `awesome-dsh-plugin` 提 PR（需仓库创建满 1 天）
+- [x] README 中英双语、安装命令、仓库结构、闸门清单
 - **验收**：别人 `pnpm add` 能装、DSH 市场搜得到、GitHub 首页能看懂
 
 ---
@@ -342,11 +434,16 @@ async function runRole(role, { cwd, prompt }) {
 - 仓库创建满 **1 天**才能进市场（CI 自动校验）
 - 本机无 git → 走 `api.github.com` 的 Contents API 逐文件推送，或你在网页建仓后我用 API 推
 
-### npm
-- 包名不能叫 `aibench`（已占用）。可选：`ai-bench` / `dsh-aibench` / `@aibench/dsh`（需确认）
-- 必须 `dsh.bundle.patch` 存在（**只在 package.json 写 `dsh.client` 是不可安装的，市场会拒**）
-- 发版：`pnpm publish --access public --registry https://registry.npmjs.org/`
-- 需要：`NPM_TOKEN`（你现在没有 `.npmrc`）
+### npm（用户已决定不发；以下是实测结论，留档）
+- 包名不能叫 `aibench`（已被占，`elnino0009_1` 的 AI 跑分工具）。最终用 **`dsh-aibench`**（`ai-bench` / `@aibench/dsh` / `aibench-panel` 也空着）。
+- 必须 `dsh.bundle.patch` 存在（**只在 package.json 写 `dsh.client` 是不可安装的，市场会拒**）。
+- **首创新包只接受 Classic Automation token。** 实测三次：
+  | token 类型 | 结果 |
+  |---|---|
+  | Granular（只读） | `403 credentials` |
+  | Granular（write + bypass_2fa） | `403 E_STAGE_REQUIRED` |
+  | Classic Automation | 可用（自检：`curl -H "Authorization: Bearer npm_xxx" https://registry.npmjs.org/-/npm/v1/tokens`） |
+- 发布脚本 `scripts/publish-npm.mjs` 已写（直接打 registry API，无需 npm CLI），随时可跑。
 
 ### DSH 插件市场
 - 目标仓库：`awesome-dsh-plugin/awesome-dsh-plugin`
@@ -365,27 +462,57 @@ icon: https://cdn.jsdelivr.net/gh/<you>/AiBench@main/packages/aibench/icon.svg
 
 ---
 
-## 8. 需要你拍板的 6 件事
+## 8. 六个待确认项（全部已定）
 
-| # | 问题 | 我的建议 |
+| # | 问题 | 结论 |
 |---|---|---|
-| Q1 | npm 包名（`aibench` 已被占） | `ai-bench`（最短、最像正式名）；备选 `dsh-aibench` |
-| Q2 | 仓库 owner | 你的 GitHub 用户名（需要你给 token 或手动建仓） |
-| Q3 | 首批赛道数量 | 先做 **3 个**（科普解说 / 品牌片头 / 数据可视化），跑通再加 |
-| Q4 | 要不要旁白配音 | 首批**不要**（本地无 Kokoro/Whisper），只做硬字幕；v0.3 再加 |
-| Q5 | 面板形态 | 近全屏 overlay（跟 vibemotion-studio 一致），不用新窗口 |
-| Q6 | 发布节奏 | S1 结束就先发一次 GitHub（拿到仓库 1 天冷却期），S2 后再发 npm |
+| Q1 | npm 包名（`aibench` 已被占） | **`dsh-aibench`**（用户拍板）。后因 token 限制决定不发 npm，但包名保留 |
+| Q2 | 仓库 owner | **`kakassq`**（用户给了 GitHub token，`scripts/publish-github.mjs` 走 API 推） |
+| Q3 | 首批赛道数量 | **3 个**（科普解说 / 品牌片头 / 数据可视化），9 个模板 |
+| Q4 | 要不要旁白配音 | **不做**（本地无 Kokoro/Whisper），只做硬字幕；`features.voice: false` |
+| Q5 | 面板形态 | **近全屏 overlay + 可收起左侧导航栏**（用户后来追加：5 栏 + 子栏目扩展接口） |
+| Q6 | 发布节奏 | GitHub 已上线；npm 不发；市场 PR 待仓库满 1 天 |
+
+**用户中途追加的三条要求（均已实现）：**
+
+- `m00243`：「同时在 github 和 deepseek harness 两个插件市场都能发布」→ `dsh.bundle.patch` 齐全、topic `dsh-plugin`、`docs/marketplace-entry.yml` 草案就位。
+- `m01936`：「主面板内可隐藏左侧导航栏」→ `.abx-nav[data-collapsed]` 收成 46px 图标条。
+- `m01938`：「预留子栏目扩展接口」→ `registerSection()` / `listSections()` 导出 + `check-sections.mjs` 守着。
 
 ---
 
-## 9. 风险与对策
+## 9. 风险与对策（回填实测结果）
 
-| 风险 | 概率 | 对策 |
+| 风险 | 概率 | 实际发生了什么 |
 |---|---|---|
-| Remotion 首装慢（810MB 依赖） | 高 | 复用 `D:\AI\Vibe\vibemotion-video\node_modules` 的 pnpm store；或直接复制该 node_modules |
-| 模型输出 JSON 不稳 | 高 | 本地 schema 校验 + 一次重问 + `planStoryboard()` 兜底 |
-| 面板里进度不可见（BN面板 的老毛病） | 中 | ProgressHub + 轮询，进度写进 Job 并推给前端 |
-| 中文 props 命令行崩溃 | 中 | `--props` 一律写文件，不传字符串 |
-| 重装插件 duplicate route | 中 | `ctx.effect` 包住 `register` |
-| 无 git 导致发布困难 | 高 | 走 GitHub API；S1 结束就建仓拿冷却期 |
-| 与已有 `AIBench` 跑分项目混淆 | 中 | README 首行定调，npm 包名避开 `aibench` |
+| Remotion 首装慢（810MB 依赖） | 高 | 复用 pnpm store，装得下（D 盘剩 230 GB）。渲染引擎进插件包内部，随包发布 |
+| 模型输出 JSON 不稳 | 高 | 真发生了：四条路由全部额度耗尽过。`localDirectorPlan()` / `localScript()` 兜底顶住了，面板全程可用 |
+| 面板里进度不可见（BN面板 的老毛病） | 中 | ProgressHub + 2 秒轮询，Task 页有进度条。**PR 里要提这一条** |
+| 中文 props 命令行崩溃 | 中 | `--props` 一律写文件，从未传字符串 |
+| 重装插件 duplicate route | 中 | `ctx.effect(() => server.register(...))` 包住，反复 reload 无异常 |
+| 无 git 导致发布困难 | 高 | `publish-github.mjs` 走 Git Data API，实测可推（98 文件 / 7.3 MB） |
+| 与已有 `AIBench` 跑分项目混淆 | 中 | README 首行定调「本地渲染的参数化视频创作面板」，npm 包名 `dsh-aibench` 避开 |
+
+**原表里没有、实际撞上的两个风险：**
+
+| 风险 | 后果 | 对策 |
+|---|---|---|
+| **`pnpm` 的依赖布局和本地符号链接不一样** | 装得好好的环境里渲染引擎「找不到」，`503 render_unavailable`。本地开发**永远发现不了** | `resolveRenderCli()` 试四个候选路径；`check-installed-layout.mjs` 用真实 tgz 安装布局验证 |
+| **画面稀疏但所有测试都绿** | 出片成功、时长正确、字幕正确，但评审判为「75% 空白、不可发布」 | 三个测量脚本 + `check-layout.mjs` 进闸门（见 4.8） |
+
+---
+
+## 10. 现在完成了什么 / 下一步
+
+**已完成（S0–S4 除 npm 发布外全部）：**
+
+- 15 道闸门全绿（`pnpm check`）
+- 内含 3 个内置 Agent / 9 个模板 / 5 栏导航 / Forge 造 Agent / SkillBridge / 脚本层 / 版式系统
+- 故宫 30 秒片：900 帧 / 1920×1080 / 30.000s / 3.76 MB，评审「balanced, finished, professional」
+- GitHub `kakassq/AiBench` 已上线（commit `a162b6d9`）
+
+**待办：**
+
+1. 向 `awesome-dsh-plugin` 提 PR（`docs/marketplace-entry.yml` 已就绪，需仓库创建满 1 天）
+2. 旁白配音（v0.3，需本地 TTS 或 DSH 语音能力）
+3. 更多赛道模板（当前 3 个 Agent × 3 模板，扩展点已留）

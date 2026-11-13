@@ -41,6 +41,28 @@ Host 侧的 `POST /director` 按顺序尝试 `LLM_ROUTES` 里的模型（`workbu
 
 生成后立刻自动排队渲染 preview MP4，出片后右栏出现 `<video>`。
 
+### 脚本层：词由模型写，版式由代码定
+
+`POST /director` 是**两次模型调用**。第一次挑 Agent + 模板（`sanitizeDirectorPlan`），第二次写脚本（`authorScript`）。合成一次时，模型要在同一个回复里既挑模板又写完六个镜头的文案，实测会被 `maxTokens` 截断在第 3–4 镜，然后整条片子退回模板套话——所以脚本单独要 `maxTokens: 1800`。
+
+脚本的形态（`scriptPrompt()` 里的契约）：
+
+```json
+{ "title": "<=18 chars",
+  "shots": [ { "kind": "hook|process|cta", "copy": "<=34", "caption": "<=40",
+               "en": "<=48", "steps": [{"zh": "...", "en": "..."}], "weight": 3 } ] }
+```
+
+规则是硬的：3–8 个镜头、首 `hook` 尾 `cta`、`copy` 是标题不是标签、`process` 必须 2–4 个 `steps`、`weight` 1–6、**不许编造事实/数字/日期/引文**、禁止「让我们开始 / 敬请期待 / 以上就是」这类填充句。
+
+三道防线：
+
+1. `sanitizeScript()` —— 非对象 / 未知 `kind` / 空 `copy` 直接丢；`process` 少于 2 个 `step` 的**整镜丢弃**（一个标题底下孤零零一行读起来像做错了）；首镜不是 `hook` 就补一个、末镜不是 `cta` 就补一个。
+2. `authorScript()` —— JSON 解析失败或 `sanitizeScript` 拿不出东西，回落 `localScript()`（确定性，用你的原句当钩子）。**模型挂了不算失败。**
+3. `planScriptedStoryboard()` —— 先跑 `planStoryboard()` 复用配色/look/拍点网格/字幕决策，再用 `weight` 按比例分配帧数（最大余数法，`sum === totalFrames`），边界吸附到拍上。装不下的脚本**截断尾部**而不是压成 6 帧一闪而过。
+
+只重写词、不动画面：`POST /projects/:id/script`（body 可带 `prompt`，缺省回落到 `origin.prompt`）。挑错模板是「片子形状错了」，写错词是「形状对了词错了」，后者不该逼用户重选模板。
+
 ## 技能桥（SkillBridge）
 
 每个 Agent 包里的 `skills/<dir>/SKILL.md` 会被 Host 扫描，并按 frontmatter 注册进 DSH 的 `skills` 服务：

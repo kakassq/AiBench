@@ -1,11 +1,14 @@
 # Awesome DSH Plugin — catalog entry for AiBench
 #
-# Submit this as a pull request to https://github.com/awesome-dsh-plugin/awesome-dsh-plugin
+# This is the file that gets submitted as a pull request to
+# https://github.com/awesome-dsh-plugin/awesome-dsh-plugin
 #
-#   file path:  data/plugins/<owner>__<repo>.yml
-#   file name:  with the monorepo subpackage suffix because the installable
-#               package is packages/aibench, not the repo root:
-#                 kakassq__AiBench--packages-aibench.yml
+#   path in the catalog repo:  data/plugins/kakassq__AiBench--packages-aibench.yml
+#
+# The installable package is `packages/aibench`, not the repo root, so this is a
+# monorepo subpackage entry: `url` points at the subdirectory and `name` uses
+# `owner/repo#subname`. Both conventions were taken from real merged entries
+# (e.g. `0x7A7A6572__dsh-forge-studio--packages-plugin-daily-log.yml`).
 #
 # The catalog README is generated from these files by a script — never edit the
 # README by hand.
@@ -16,18 +19,30 @@
 #   category     one of: agi ui usage theme model identity session memory tools
 #                wsl browser vision voice docs skill workflow git notify dev
 #                security remote market fun
-#   description  en + zh, one line each, ending with a period. Quote the value
-#                if it contains ": " (colon + space).
-#   icon         optional, raw.githubusercontent URL
+#   description  en required; zh optional. One line each, ending with a period.
+#                Quote the value if it contains ": " (colon + space).
+#   icon         optional, GitHub-hosted *raster* image (raw.githubusercontent).
+#                An SVG does not work — the storefront tile wants a bitmap.
 #
-# The catalog rejects a plugin whose package.json declares only dsh.client —
-# dsh.bundle is mandatory for installability. packages/aibench/package.json
-# declares both.
+# Gate checks this entry has to pass:
+#   - `dsh.bundle` declared in package.json  → packages/aibench/package.json has it
+#   - repo created ≥ 1 day ago              → 2026-11-12T09:33:38Z
+#   - topic `dsh-plugin` on the repo        → yes
+#   - real working code, no placeholder     → 15 gates, renders real MP4s
+#   - description is a factual claim        → each clause below maps to code
+#
+# Every claim below is checkable in the repo:
+#   "local-first parametric"      → render engine runs in-process, no cloud render
+#   "one-sentence agent authoring" → POST /forge/drafts + Forge page
+#   "renders motion graphics with code" → Remotion compositions, no image models
+#   "no AI image or video generation"   → zero image/video API calls in index.js
+#   "reproducible frame for frame"      → planStoryboard is deterministic,
+#                                         check-timeline.mjs asserts 19440 cases
 
-url: https://github.com/kakassq/AiBench
-name: kakassq/AiBench#packages/aibench
+url: https://github.com/kakassq/AiBench/tree/main/packages/aibench
+name: kakassq/AiBench#aibench
 category: ui
 description:
-  en: Local-first parametric video studio with one-sentence agent authoring. Renders motion graphics with code — no AI image or video generation, reproducible frame for frame.
-  zh: 本地渲染的参数化视频创作台，支持一句话造智能体。画面全由代码逐帧绘制，不生图不生视频，同参数可复现，零渲染成本。
+  en: 'Local-first parametric video studio for DeepSeek Harness. Turns one sentence into a storyboard and renders it with Remotion — every frame is drawn by code, no AI image or video generation, and the same parameters always produce the same film. Includes one-sentence agent authoring.'
+  zh: '本地渲染的参数化视频创作台：一句话生成分镜并用 Remotion 逐帧绘制成片，不生图不生视频，同参数可复现；支持一句话造智能体。'
 icon: https://raw.githubusercontent.com/kakassq/AiBench/main/assets/icon-180.png

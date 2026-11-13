@@ -16,14 +16,21 @@ const gates = [
   ['check-client-render', ['scripts/check-client-render.mjs']],
   ['check-templates', ['scripts/check-templates.mjs']],
   ['check-director', ['scripts/check-director.mjs']],
+  ['check-script', ['scripts/check-script.mjs']],
   ['check-skills', ['scripts/check-skills.mjs']],
   ['check-forge', ['scripts/check-forge.mjs']],
   ['check-routes', ['scripts/check-routes.mjs']],
   ['forge-e2e', ['scripts/forge-e2e.mjs']],
   ['check-storyboard-build', ['scripts/check-storyboard-build.mjs']],
+  // Renders 12 frames through the real CLI and measures them: a layout change
+  // that only looks right in one aspect ratio fails here.
+  ['check-layout', ['scripts/check-layout.mjs']],
   ['check-installed-layout', ['scripts/check-installed-layout.mjs']],
   ['make-icon-png', ['scripts/make-icon-png.mjs']],
-  ['probe', ['scripts/probe.mjs', 'http://127.0.0.1:49658']],
+  // No explicit origin: `probe.mjs` discovers the port the desktop app is
+  // currently listening on. Pinning one here is what made this gate go red
+  // every time the app restarted on a fresh port.
+  ['probe', ['scripts/probe.mjs']],
 ]
 
 let failed = 0

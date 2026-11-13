@@ -1075,6 +1075,7 @@ function trimStoryboard(sb) {
       durationFrames: shot.durationFrames,
       copy: shot.copy,
       caption: shot.caption ?? null,
+      en: shot.en ?? null,
       steps: shot.steps ?? null,
     })),
   }
@@ -1083,7 +1084,11 @@ function trimStoryboard(sb) {
 async function planProject(record) {
   const sb = await loadStoryboard()
   const params = normalizeParams(record.params, record.aspect)
-  const planned = sb.planStoryboard(record.brief ?? '', params)
+  // A project with a script is laid out from its shots; one without keeps the
+  // archetype plan. Both go through the same boundary maths in storyboard.ts.
+  const planned = record.script && Array.isArray(record.script.shots) && record.script.shots.length > 0
+    ? sb.planScriptedStoryboard(record.brief ?? '', params, record.script)
+    : sb.planStoryboard(record.brief ?? '', params)
   return trimStoryboard(planned)
 }
 
@@ -1105,6 +1110,12 @@ function writePropsFile(project, mode) {
     brief: project.brief ?? '',
     params,
     seed: params.seed,
+  }
+  // The composition resolves the script itself so the CLI's `calculateMetadata`
+  // and the rendered frames agree on the length. Sending a pre-planned
+  // storyboard instead would let the two drift apart.
+  if (project.script && Array.isArray(project.script.shots) && project.script.shots.length > 0) {
+    props.script = project.script
   }
   const file = join(dir, `props-${mode}.json`)
   writeFileSync(file, JSON.stringify(props), 'utf8')
@@ -1201,7 +1212,7 @@ function extractJsonObject(text) {
  * One streaming model call. Resolves `{ ok, text, route, failure }`.
  * `failure.code === 'QUOTA'` is what tells the caller to try the next route.
  */
-async function callLlmOnce(llm, route, system, userText, signal) {
+async function callLlmOnce(llm, route, system, userText, signal, maxTokens = 900) {
   let text = ''
   let failure = null
   let finishKind = null
@@ -1212,7 +1223,7 @@ async function callLlmOnce(llm, route, system, userText, signal) {
       messages: [{ role: 'user', content: [{ type: 'text', text: userText }] }],
       system,
       temperature: 0.7,
-      maxTokens: 900,
+      maxTokens,
       signal,
     })
     for await (const chunk of stream) {
@@ -1231,7 +1242,7 @@ async function callLlmOnce(llm, route, system, userText, signal) {
 }
 
 /** Try each configured route until one answers. Returns `{ ok, text, route, attempts }`. */
-async function callLlmWithFallback(llm, system, userText) {
+async function callLlmWithFallback(llm, system, userText, maxTokens = 900) {
   const attempts = []
   let available = []
   try {
@@ -1246,7 +1257,7 @@ async function callLlmWithFallback(llm, system, userText) {
 
   for (const route of available) {
     const signal = AbortSignal.timeout(LLM_TIMEOUT_MS)
-    const result = await callLlmOnce(llm, route, system, userText, signal)
+    const result = await callLlmOnce(llm, route, system, userText, signal, maxTokens)
     attempts.push({
       route: `${route.provider}/${route.model}`,
       ok: result.ok,
@@ -1419,6 +1430,203 @@ function sanitizeDirectorPlan(raw, agents, templates, mode, userPrompt) {
   const brief = typeof plan.brief === 'string' && plan.brief.trim() ? plan.brief.trim().slice(0, 200) : fallback.brief
 
   return { plan: { agentId: agent.id, templateId: template.id, title, brief, params }, rejected, template, agent }
+}
+
+// ---------------------------------------------------------------------------
+// Script layer — the words, as opposed to the timing
+// ---------------------------------------------------------------------------
+//
+// The template archetypes are a floor, not a script: every explainer says "一件事，
+// 拆成三步讲" no matter what the video is about. That is fine for proving the
+// renderer works and useless for publishing. A script supplies the words; every
+// timing rule (beat snapping, weight distribution, minimum shot length, caption
+// derivation) stays in `storyboard.ts`, so an authored video is laid out exactly
+// like a planned one.
+//
+// Two rules keep a model-authored script from becoming garbage:
+//  1. Structure is validated, not trusted. Shot kinds, shot count, empty copy,
+//     duplicate steps — anything that would render as a blank or broken frame is
+//     dropped here, before it reaches the timeline.
+//  2. No model, no problem. When the LLM is unavailable the script is built from
+//     the user's own sentence, so the button still produces something filmable.
+
+/** How many shots a script may have. Mirrors `MAX_SCRIPT_SHOTS` in storyboard.ts. */
+const MAX_SCRIPT_SHOTS = 8
+
+/** A shot copy longer than this cannot be set as a headline at any size. */
+const MAX_SHOT_COPY = 34
+
+const SCRIPT_KINDS = ['hook', 'process', 'cta']
+
+function scriptPrompt(userPrompt, template, agent) {
+  const bound = resolveDefaultSkill(agent.id, collectAgentSkills())
+  return [
+    'You are a scriptwriter for a code-rendered typographic video. No footage, no photos, no voice-over: every word appears as type on screen.',
+    '',
+    'Reply with JSON only. No prose, no code fence.',
+    '',
+    'Shape:',
+    '{"title":"<video title, <= 18 chars>","shots":[{"kind":"hook"|"process"|"cta","copy":"<the big on-screen line>","caption":"<the spoken line, may differ from copy>","en":"<short English gloss, optional>","steps":[{"zh":"<item>","en":"<item>"}],"weight":<1-6>}]}',
+    '',
+    'Rules:',
+    `- 3 to ${MAX_SCRIPT_SHOTS} shots. The first must be "hook", the last must be "cta".`,
+    '- Exactly one shot of each of hook/process/cta is the minimum; extra shots may repeat any kind.',
+    `- "copy" is the headline: <= ${MAX_SHOT_COPY} characters, no trailing period, no quotes. It must be a claim, not a label.`,
+    '- "caption" is the narration sentence under it: <= 40 characters, complete, speakable.',
+    '- A "process" shot needs 2-4 "steps"; each step is a short verb phrase, not a sentence.',
+    '- "weight" is how long the shot holds, 1 (short) to 6 (long). Give the most weight to the shot that carries the payoff.',
+    '- Write in the language of the user intent. Do not translate the headline into English; use "en" only for the small gloss.',
+    '- Never invent facts, numbers, dates or quotes. If the intent has no facts, write structure and meaning, not statistics.',
+    '- No filler: no "让我们开始", no "敬请期待", no "以上就是". Every line must say something.',
+    '',
+    `Template this will render with: ${template.id} (${template.title ?? ''}) — ${template.brief ?? ''}`,
+    bound ? `Its pipeline: ${bound.at} — ${bound.description}` : '',
+    '',
+    `User intent: ${userPrompt}`,
+  ]
+    .filter((line) => line !== null && line !== undefined)
+    .join('\n')
+}
+
+/** Trim, drop quotes, and refuse a headline that cannot be typeset. */
+function cleanLine(value, max) {
+  if (typeof value !== 'string') return ''
+  const text = value
+    .replace(/^[\s"'“”「」『』]+|[\s"'“”「」『』]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!text) return ''
+  return text.length > max ? text.slice(0, max) : text
+}
+
+/**
+ * Validate a model-authored script against what the renderer can lay out.
+ *
+ * Returns `{ script, rejected }`. A script is only accepted when it has at least
+ * a hook and a cta with real copy — a half-parsed reply is worse than no reply,
+ * because it renders a plausible-looking video that says nothing.
+ */
+export function sanitizeScript(raw, fallbackBrief) {
+  const rejected = []
+  const input = raw && typeof raw === 'object' ? raw : {}
+  const shotsIn = Array.isArray(input.shots) ? input.shots : []
+  if (shotsIn.length === 0) return { script: null, rejected: ['shots'] }
+
+  const shots = []
+  for (const item of shotsIn.slice(0, MAX_SCRIPT_SHOTS)) {
+    if (!item || typeof item !== 'object') {
+      rejected.push('shot')
+      continue
+    }
+    const kind = SCRIPT_KINDS.includes(item.kind) ? item.kind : null
+    if (!kind) {
+      rejected.push('kind')
+      continue
+    }
+    const copy = cleanLine(item.copy, MAX_SHOT_COPY)
+    if (!copy) {
+      rejected.push('copy')
+      continue
+    }
+    const shot = { kind, copy }
+    const caption = cleanLine(item.caption, 60)
+    if (caption) shot.caption = caption
+    const en = cleanLine(item.en, 48)
+    if (en) shot.en = en
+
+    if (kind === 'process') {
+      const stepsIn = Array.isArray(item.steps) ? item.steps : []
+      const steps = stepsIn
+        .map((step) => ({
+          zh: cleanLine(step && step.zh, 24),
+          en: cleanLine(step && step.en, 32),
+        }))
+        .filter((step) => step.zh)
+        .slice(0, 4)
+      if (steps.length < 2) {
+        // A process shot with fewer than two steps renders one lonely row under
+        // a headline, which reads as a mistake rather than a rhythm.
+        rejected.push('steps')
+        continue
+      }
+      shot.steps = steps
+    }
+
+    const weight = Number(item.weight)
+    if (Number.isFinite(weight) && weight > 0) shot.weight = Math.min(6, Math.max(1, weight))
+    shots.push(shot)
+  }
+
+  if (shots.length === 0) return { script: null, rejected }
+
+  const kinds = shots.map((shot) => shot.kind)
+  if (kinds[0] !== 'hook') {
+    rejected.push('firstShot')
+    shots.unshift({ kind: 'hook', copy: cleanLine(fallbackBrief, MAX_SHOT_COPY) || '先说结论' })
+  }
+  if (shots[shots.length - 1].kind !== 'cta') {
+    rejected.push('lastShot')
+    shots.push({ kind: 'cta', copy: '记住这一句就够了。', weight: 1 })
+  }
+  if (!kinds.includes('process') && shots.length < 3) {
+    rejected.push('process')
+  }
+
+  const title = cleanLine(input.title, 24)
+  return { script: { title: title || undefined, shots }, rejected }
+}
+
+/** The script a render falls back to when no model answers: the user's own words. */
+export function localScript(userPrompt, brief) {
+  const text = cleanLine(brief || userPrompt, MAX_SHOT_COPY * 2) || '我的下一个作品'
+  const head = cleanLine(text, MAX_SHOT_COPY)
+  const rest = text.length > MAX_SHOT_COPY ? text.slice(MAX_SHOT_COPY).trim() : ''
+  return {
+    title: cleanLine(head, 18) || undefined,
+    shots: [
+      { kind: 'hook', copy: head, caption: text, weight: 3 },
+      {
+        kind: 'process',
+        copy: rest ? cleanLine(rest, MAX_SHOT_COPY) : '把它拆开，一层一层看',
+        weight: 4,
+        steps: [
+          { zh: '先看整体', en: 'See the whole' },
+          { zh: '再看结构', en: 'See the parts' },
+          { zh: '最后看它为什么成立', en: 'See why it holds' },
+        ],
+      },
+      { kind: 'cta', copy: '看到这里就够了。', weight: 1 },
+    ],
+  }
+}
+
+/**
+ * Author a script for a prompt, with the model if there is one.
+ *
+ * Resolves `{ script, source, rejected, attempts, error }`. `source` is `'llm'`
+ * only when the reply survived validation; anything else falls back to the
+ * user's sentence so the caller never has to handle "no script".
+ */
+async function authorScript(llm, userPrompt, brief, template, agent) {
+  if (!llm) {
+    return { script: localScript(userPrompt, brief), source: 'local', rejected: [], attempts: [], error: 'the llm service is unavailable in this Host runtime' }
+  }
+  const system = 'You are a scriptwriter for code-rendered typographic video. You answer with JSON only.'
+  const userText = scriptPrompt(userPrompt, template, agent)
+  // A six-shot script with captions runs past the director's 900-token budget.
+  const result = await callLlmWithFallback(llm, system, userText, 1800)
+  if (!result.ok) {
+    return { script: localScript(userPrompt, brief), source: 'local', rejected: [], attempts: result.attempts, error: result.error ?? 'the script call failed' }
+  }
+  const parsed = extractJsonObject(result.text)
+  if (!parsed) {
+    return { script: localScript(userPrompt, brief), source: 'local', rejected: ['json'], attempts: result.attempts, error: 'the scriptwriter replied without a JSON object' }
+  }
+  const { script, rejected } = sanitizeScript(parsed, brief || userPrompt)
+  if (!script) {
+    return { script: localScript(userPrompt, brief), source: 'local', rejected, attempts: result.attempts, error: 'the script failed validation' }
+  }
+  return { script, source: 'llm', rejected, attempts: result.attempts, error: null }
 }
 
 // ---------------------------------------------------------------------------
@@ -2210,19 +2418,34 @@ async function handle(req, res) {
       const bound = defaultSkillFor(agent.id)
       const skillAt = bound ? bound.at : ''
 
+      // A template supplies timing and look; the script supplies the words.
+      // Authoring is a second model call because asking one call to pick a
+      // template *and* write a six-shot script reliably truncates the script.
+      const authored = await authorScript(llm, prompt, plan.brief, template, agent)
+
       const id = `p_${randomUUID().replace(/-/g, '').slice(0, 14)}`
       const record = {
         id,
-        title: plan.title || template.title || 'Untitled',
+        title: authored.script?.title || plan.title || template.title || 'Untitled',
         templateId: template.id,
         agentId: agent.id,
         brief: plan.brief || template.brief || prompt,
         params: plan.params,
+        script: authored.script,
         status: 'draft',
         storyboard: null,
         outputs: { stills: [], video: null, audio: null },
         jobId: null,
-        origin: { kind: 'director', prompt, mode, source, attempts, rejected, skill: skillAt || null },
+        origin: {
+          kind: 'director',
+          prompt,
+          mode,
+          source,
+          attempts,
+          rejected,
+          skill: skillAt || null,
+          script: { source: authored.source, error: authored.error, rejected: authored.rejected, attempts: authored.attempts },
+        },
         createdAt: nowIso(),
         updatedAt: nowIso(),
       }
@@ -2239,6 +2462,12 @@ async function handle(req, res) {
           rejected,
           mode,
           skill: bound ? { at: bound.at, name: bound.name, description: bound.description } : null,
+          script: {
+            source: authored.source,
+            error: authored.error,
+            rejected: authored.rejected,
+            shots: record.script ? record.script.shots.length : 0,
+          },
         },
       })
     } catch (error) {
@@ -2363,6 +2592,66 @@ async function handle(req, res) {
       sendJson(res, 200, { ok: true, storyboard })
     } catch (error) {
       sendError(res, 500, 'internal_error', errorMessage(error))
+    }
+    return
+  }
+
+  // POST /projects/:id/script — rewrite the words of an existing project.
+  //
+  // Separate from `/director` because the two failures are different: a bad
+  // template pick means the video is in the wrong shape, a bad script means the
+  // shape is right and the words are wrong. Re-authoring keeps the template,
+  // params and look, so the user only pays for the part that was wrong.
+  const scriptMatch = path.match(/^\/projects\/([A-Za-z0-9_-]+)\/script$/)
+  if (scriptMatch && method === 'POST') {
+    const record = readProject(scriptMatch[1])
+    if (!record) {
+      sendError(res, 404, 'not_found', `unknown project: ${scriptMatch[1]}`)
+      return
+    }
+    try {
+      const body = await readJsonBody(req)
+      const agents = listAgents()
+      const templates = listTemplates(agents)
+      const template = templates.find((tpl) => tpl.id === record.templateId) || templates[0]
+      const agent = agents.find((item) => item.id === record.agentId) || agents[0]
+      if (!template || !agent) {
+        sendError(res, 409, 'no_templates', 'the agent or template for this project is no longer installed')
+        return
+      }
+      // `prompt` defaults to the original intent: "write it again, same brief"
+      // is the common case, and it is what the retry button sends.
+      const prompt = typeof body.prompt === 'string' && body.prompt.trim()
+        ? body.prompt.trim()
+        : (record.origin && record.origin.prompt) || record.brief || record.title
+      const llm = ctxRef?.get ? ctxRef.get('llm') : null
+      const authored = await authorScript(llm, prompt, record.brief, template, agent)
+      const next = {
+        ...record,
+        script: authored.script,
+        title: authored.script?.title || record.title,
+        origin: {
+          ...(record.origin ?? {}),
+          prompt,
+          script: { source: authored.source, error: authored.error, rejected: authored.rejected, attempts: authored.attempts },
+        },
+        updatedAt: nowIso(),
+      }
+      writeProject(next)
+      const storyboard = await planProject(next)
+      sendJson(res, 200, {
+        ok: true,
+        project: next,
+        storyboard,
+        script: {
+          source: authored.source,
+          error: authored.error,
+          rejected: authored.rejected,
+          shots: authored.script ? authored.script.shots.length : 0,
+        },
+      })
+    } catch (error) {
+      sendError(res, 400, 'bad_request', errorMessage(error))
     }
     return
   }

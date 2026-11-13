@@ -62,6 +62,28 @@ node scripts/build-storyboard.mjs
 
 **注意**：`Captions` 只认 `shot.caption`，**绝不回落到 `shot.copy`** —— 大标题和字幕是给两个不同读者看的，把标题复读一遍当字幕是错的。所以旁白必须由 `planStoryboard` 自己产出；漏掉这步字幕会**静默消失**（不报错、不告警、视频照常出片）。`check-timeline.mjs` 现在把「有字幕模式必须每镜有 caption、none 模式必须没有」当不变量守着。
 
+## 脚本驱动的分镜
+
+`planStoryboard(brief, params)` 产出的是**原型计划**：配色、look、拍点、镜头种类都对，但文案来自 `TYPE_COPY` 的固定句子。它保证任何输入都能渲出一条片子，不承载选题内容。
+
+`planScriptedStoryboard(brief, params, script)` 在它之上工作：
+
+1. 先跑 `planStoryboard()`，复用全部非镜头决策 —— 脚本永远不可能和主题系统对「palette 索引 3 是什么颜色」产生分歧。
+2. 空脚本直接返回原型计划（向后兼容）。
+3. `shots × MIN_SCRIPT_SHOT_FRAMES` 超过总帧数时**截断尾部镜头**，而不是缩小最小值。6 帧的镜头一闪而过，观众只会觉得是渲染故障。
+4. 按 `weight` 用最大余数法分配帧数（`sum === totalFrames` 恒成立），再把内部边界吸附到拍上。
+5. 每镜缺的 `name` / `motion` / `transition` / `card` 从同 kind 的原型镜借。
+
+`resolveStoryboard(props)` 在 `props.script` 存在时走这条路径。`Root.tsx` 的 `calculateMetadata` 也必须用它——用 `planStoryboard` 会把时长报成原型长度，成片被切短。
+
+## 版式：`metricsFor()` 是单一真源
+
+`AiClip.tsx` 的 `metricsFor(theme)` 返回 `{wide, railTop, contentTop, contentBottom, gutter, railWidth}`。`wide = !theme.vertical` 决定 16:9 走两栏（左陈述 46% + 右承载物）还是竖版单列堆叠；`contentTop` / `contentBottom` 保证内容块永远让开顶栏和字幕带。
+
+常驻骨架（四角括号 / 顶栏 / 进度条）每个镜头都画，所以任何一帧都不会是大片空白。右栏承载物按镜头种类切换：`SpecPanel`（hook）、`EvidencePanel`（有 steps 的 process）、`RecapPanel`（cta）、`ChapterRail`（兜底）。
+
+改动版式后跑 `node scripts/check-layout.mjs`：3 画幅 × 4 帧，用真 CLI 渲出来量四边安全区、6 条横带有墨、read ink ≥ 0.9%。「只在 16:9 好看、竖版塌掉」会当场失败。
+
 ## 用法
 
 ```bash

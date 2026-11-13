@@ -21,6 +21,8 @@
     "check:sections": "node scripts/check-sections.mjs",
     "check:templates": "node scripts/check-templates.mjs",
     "check:director": "node scripts/check-director.mjs",
+    "check:script": "node scripts/check-script.mjs",
+    "check:layout": "node scripts/check-layout.mjs",
     "check:skills": "node scripts/check-skills.mjs",
     "check:forge": "node scripts/check-forge.mjs",
     "check:routes": "node scripts/check-routes.mjs",

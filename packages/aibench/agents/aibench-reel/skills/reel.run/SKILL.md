@@ -35,12 +35,32 @@ description: 发布短片流水线：钩子 → 功能三连 → 落板，竖版
 - 只用 `bg` / `fg` / `accent` 三色。
 - 禁止 `Date.now()` / `Math.random()`；随机一律来自 `seed = hashText(brief)`。
 - 结尾必须有落版帧，不能直接黑场结束。
+- **每镜都要有 `caption`**。漏写会让字幕静默消失。
 
-## 输出契约
+## 脚本契约
+
+内容走 `script`，帧数由 `planScriptedStoryboard()` 按 `weight` 分配并吸附到拍上：
 
 ```jsonc
 {
-  "brief": "AIBENCH 字标三拍落版",
-  "params": { "type": 1, "style": 4, "palette": 3, "durationSec": 12, "beatBpm": 120, "subtitle": "zh", "flow": 0, "aspect": "9:16" }
+  "title": "AIBENCH 字标",
+  "shots": [
+    { "kind": "hook", "copy": "AIBENCH", "caption": "本地渲染的动效工厂", "en": "Local motion studio", "weight": 2 },
+    { "kind": "process", "copy": "不用生图", "caption": "画面全是代码画的", "en": "Every frame is code", "weight": 3,
+      "steps": [ { "zh": "矢量排版", "en": "Vector type" },
+                 { "zh": "图表推演", "en": "Chart reveals" },
+                 { "zh": "卡点切镜", "en": "Cut on beat" } ] },
+    { "kind": "cta", "copy": "装上就能用", "caption": "一句话出片", "weight": 2 }
+  ]
 }
 ```
+
+配套参数（竖版）：
+
+```jsonc
+{ "type": 1, "style": 4, "palette": 3, "durationSec": 12, "beatBpm": 120, "subtitle": "zh", "flow": 0, "aspect": "9:16" }
+```
+
+规则：首镜 `hook`、末镜 `cta`；`process` 必须 2–4 个 `steps`，每条 `zh` + `en` 都写；`weight` 1–6；`copy` ≤34 字。竖版是单列堆叠版式，字幕带宽只有 16 字，超了会换行挤掉内容。
+
+`cta` 镜会自动生成 `RecapPanel`（回顾前面各条过程镜）。所以 process 的 `copy` 要能独立成立——它会被收尾页重新列一遍。

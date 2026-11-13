@@ -2,7 +2,7 @@ import React from 'react';
 import { Composition } from 'remotion';
 
 import { AiClip, type AiClipProps } from './AiClip';
-import { DEFAULT_BRIEF, FPS, planStoryboard } from './storyboard';
+import { DEFAULT_BRIEF, FPS, resolveStoryboard } from './storyboard';
 
 /**
  * The composition's frame count is data-driven: `calculateMetadata` plans the
@@ -26,7 +26,11 @@ const baseProps: AiClipProps = {
 };
 
 function measure(props: AiClipProps) {
-  const storyboard = planStoryboard(props.brief ?? '', props.params ?? {});
+  // Resolve, not plan: a scripted render's length is decided by the same
+  // boundary maths as a planned one, and only `resolveStoryboard` runs the
+  // script branch. Measuring with `planStoryboard` would report the archetype
+  // length and cut the composition short.
+  const storyboard = resolveStoryboard(props as never);
   return {
     durationInFrames: Math.max(1, storyboard.totalFrames),
     fps: FPS,

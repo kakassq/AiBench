@@ -6,16 +6,63 @@
  * pass/fail table. Used as the S0 acceptance check and as the per-stage
  * regression gate afterwards.
  *
- *   node scripts/probe.mjs            # uses http://127.0.0.1:57360
+ *   node scripts/probe.mjs            # discovers the running web server
  *   node scripts/probe.mjs <origin>   # explicit origin
  *
  * Exit code 0 only when every check passes, so it can gate a release.
  */
 
-const DEFAULT_ORIGIN = 'http://127.0.0.1:57360'
 const BASE = '/aibench-api'
 
-const origin = (process.argv[2] || process.env.AIBENCH_ORIGIN || DEFAULT_ORIGIN).replace(/\/+$/, '')
+/**
+ * The desktop app picks a free port on every launch, so a hard-coded one goes
+ * stale the moment the app restarts. Probe the loopback range and use the first
+ * port that answers like a DSH server. `AIBENCH_ORIGIN` still wins, which is
+ * what CI and the explicit-argument form use.
+ */
+async function discoverOrigin() {
+  const candidates = []
+  for (let port = 49152; port <= 65535; port++) candidates.push(port)
+  // The app has been seen in this band often enough to try it first.
+  const preferred = [49658, 57360, 61013]
+  const ordered = [...preferred, ...candidates.filter((p) => !preferred.includes(p))]
+
+  const probeOne = async (port) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}${BASE}/panel/info`, {
+        signal: AbortSignal.timeout(400),
+        headers: { accept: 'application/json' },
+      })
+      if (!response.ok) return null
+      const payload = await response.json()
+      return payload && payload.ok === true && payload.name ? `http://127.0.0.1:${port}` : null
+    } catch {
+      return null
+    }
+  }
+
+  // Scan in batches: 16k sequential 400ms timeouts would take hours, but a
+  // batch of 256 finishes a full range in a few seconds on loopback.
+  const BATCH = 256
+  for (let i = 0; i < ordered.length; i += BATCH) {
+    const batch = ordered.slice(i, i + BATCH)
+    const found = await Promise.all(batch.map(probeOne))
+    const hit = found.find(Boolean)
+    if (hit) return hit
+  }
+  return null
+}
+
+const explicit = process.argv[2] || process.env.AIBENCH_ORIGIN
+const origin = explicit
+  ? explicit.replace(/\/+$/, '')
+  : await discoverOrigin()
+
+if (!origin) {
+  console.error('no running AiBench host found; start DSH or pass an origin explicitly')
+  process.exit(1)
+}
+console.log(`probing ${origin}${BASE}`)
 
 const checks = []
 function check(name, run) {

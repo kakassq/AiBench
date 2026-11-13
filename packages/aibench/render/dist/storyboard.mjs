@@ -170,6 +170,10 @@ export const FLOW_ORDER = [
     ['process', 'hook', 'cta'], // 过程优先
     ['cta', 'hook', 'process'], // 结果前置
 ];
+/** A script longer than this stops being a short video. */
+export const MAX_SCRIPT_SHOTS = 8;
+/** Below this a shot cannot animate in and out inside a 30fps timeline. */
+export const MIN_SCRIPT_SHOT_FRAMES = 24;
 /* ------------------------------------------------------------------ *
  * Counts (kept in sync with the reference project)
  * ------------------------------------------------------------------ */
@@ -531,6 +535,107 @@ export function planStoryboard(brief, params = {}) {
     };
 }
 /* ------------------------------------------------------------------ *
+ * Authored scripts
+ * ------------------------------------------------------------------ */
+/**
+ * Lay out a hand-written script.
+ *
+ * The archetype planner exists so a render never depends on a model answering;
+ * it is a floor, not a script. This function keeps that floor's *timing* — beat
+ * snapping, boundary capping, minimum shot length, caption derivation — and
+ * swaps only the words. That split is the whole point: an authored 30-second
+ * piece and a planned 30-second piece must be indistinguishable structurally,
+ * otherwise every layout fix has to be made twice.
+ *
+ * Weight, not duration, decides each shot's share. A script that says "hold on
+ * this one" raises its weight and the rest shrink; nothing is hard-coded to
+ * frames, so the same script renders correctly at any `durationSec`.
+ */
+export function planScriptedStoryboard(brief, params = {}, script) {
+    // The base plan supplies every non-shot decision (palette, look, beat grid,
+    // subtitle mode, counts). Reusing it means a script can never disagree with
+    // the theme system about what a palette index means.
+    const base = planStoryboard(brief, params);
+    const authored = (script?.shots ?? []).filter((shot) => shot && typeof shot.copy === 'string' && shot.copy.trim());
+    if (authored.length === 0)
+        return base;
+    const shotsIn = authored.slice(0, MAX_SCRIPT_SHOTS);
+    const totalFrames = base.totalFrames;
+    const beatBpm = base.beatBpm;
+    // Refuse a script that cannot physically fit: N shots × MIN frames must fit
+    // the timeline. Shrinking the minimum instead would silently produce
+    // 6-frame shots that flash past and read as a glitch.
+    const floor = shotsIn.length * MIN_SCRIPT_SHOT_FRAMES;
+    if (floor > totalFrames) {
+        const keep = Math.max(1, Math.floor(totalFrames / MIN_SCRIPT_SHOT_FRAMES));
+        shotsIn.length = keep;
+    }
+    const weights = shotsIn.map((shot) => typeof shot.weight === 'number' && Number.isFinite(shot.weight) && shot.weight > 0
+        ? shot.weight
+        : DURATIONS[shot.kind] ?? 90);
+    const durations = distribute(totalFrames, weights);
+    // Same boundary-first snapping as `planStoryboard`: snap interior boundaries
+    // onto the beat grid, then derive durations, which is what keeps "no overlap",
+    // "no gap" and "sum === totalFrames" true simultaneously.
+    const boundaries = [0];
+    {
+        let cursor = 0;
+        for (let i = 1; i < shotsIn.length; i++) {
+            cursor += durations[i - 1];
+            const snapped = Math.round(snapUpToBeat(cursor, beatBpm, FPS));
+            const delta = snapped - cursor;
+            const room = Math.min(durations[i - 1], durations[i]) - MIN_SCRIPT_SHOT_FRAMES;
+            if (delta > 0 && delta <= room)
+                cursor = snapped;
+            const cap = totalFrames - MIN_SCRIPT_SHOT_FRAMES * (shotsIn.length - i);
+            boundaries.push(Math.min(cursor, cap));
+        }
+    }
+    const shots = shotsIn.map((input, i) => {
+        const from = boundaries[i];
+        const end = i === shotsIn.length - 1 ? totalFrames : boundaries[i + 1];
+        const durationFrames = end - from;
+        const fallback = base.shots.find((shot) => shot.kind === input.kind) ?? base.shots[0];
+        const shot = {
+            index: i + 1,
+            kind: input.kind,
+            name: input.name ?? fallback?.name ?? input.kind,
+            from,
+            durationFrames,
+            copy: input.copy.trim(),
+            motion: input.motion ?? fallback?.motion ?? '',
+            transition: input.transition ?? fallback?.transition ?? '硬切',
+            card: input.card ?? fallback?.card ?? '',
+        };
+        if (input.en)
+            shot.en = input.en;
+        if (input.kind === 'hook' || input.kind === 'cta')
+            shot.beat = true;
+        const stepsIn = input.steps ?? (input.kind === 'process' ? fallback?.steps : undefined);
+        if (stepsIn && stepsIn.length > 0) {
+            const n = stepsIn.length;
+            shot.steps = stepsIn.map((step, k) => {
+                const raw = Math.round((k * durationFrames) / n);
+                const snapped = Math.round(snapUpToBeat(raw, beatBpm, FPS));
+                const at = Math.min(Math.max(0, snapped), Math.max(0, durationFrames - 18));
+                return { at, zh: step.zh, en: step.en ?? '' };
+            });
+        }
+        // `Captions` reads `shot.caption` and nothing else. An authored shot that
+        // forgets one would render a silent band, so the copy is the default and a
+        // real narration line overrides it.
+        if (base.subtitle !== 'none') {
+            shot.caption = (input.caption ?? input.copy).trim();
+        }
+        return shot;
+    });
+    return {
+        ...base,
+        title: script?.title?.trim() || base.title,
+        shots,
+    };
+}
+/* ------------------------------------------------------------------ *
  * Props → storyboard
  * ------------------------------------------------------------------ */
 /**
@@ -546,7 +651,9 @@ export function resolveStoryboard(props) {
     if (typeof props.seed === 'number' && Number.isFinite(props.seed) && params.seed === undefined) {
         params.seed = props.seed;
     }
-    const planned = planStoryboard(props.brief ?? '', params);
+    const planned = props.script
+        ? planScriptedStoryboard(props.brief ?? '', params, props.script)
+        : planStoryboard(props.brief ?? '', params);
     const look = LOOKS[planned.style];
     const host = props.storyboard;
     if (!host || !Array.isArray(host.shots) || host.shots.length === 0)

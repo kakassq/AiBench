@@ -36,12 +36,32 @@ description: 数据故事的流水线：抛数 → 拆结构 → 找异常 → �
 - 只用 `bg` / `fg` / `accent` 三色；accent 只加在**最关键的哪一个数字**上。
 - 禁止 `Date.now()` / `Math.random()`；随机一律来自 `seed = hashText(brief)`。
 - 横版 1920×1080 时数字字号不超过 0.22 × 高度，否则中文单位会被挤出画面。
+- **每镜都要有 `caption`**。漏写会让字幕静默消失。
 
-## 输出契约
+## 脚本契约
+
+内容走 `script`，帧数由 `planScriptedStoryboard()` 按 `weight` 分配并吸附到拍上：
 
 ```jsonc
 {
-  "brief": "全球 AI 资本支出三年涨了 4 倍，但只有 11% 的公司在里面赚到钱",
-  "params": { "type": 2, "style": 1, "palette": 0, "durationSec": 25, "beatBpm": 100, "subtitle": "bilingual", "flow": 0 }
+  "title": "三年四倍，只赚一成",
+  "shots": [
+    { "kind": "hook", "copy": "4 倍", "caption": "全球 AI 资本支出三年涨了 4 倍", "en": "4x in three years", "weight": 2 },
+    { "kind": "process", "copy": "钱去了哪里", "caption": "四个口袋，只有一个在回本", "en": "Where the money went", "weight": 3,
+      "steps": [ { "zh": "算力 58%", "en": "Compute 58%" },
+                 { "zh": "模型 27%", "en": "Models 27%" },
+                 { "zh": "应用 15%", "en": "Apps 15%" } ] },
+    { "kind": "cta", "copy": "只有一成在赚钱", "caption": "11% 的公司在里面赚到钱", "weight": 2 }
+  ]
 }
 ```
+
+配套参数：
+
+```jsonc
+{ "type": 2, "style": 1, "palette": 0, "durationSec": 25, "beatBpm": 100, "subtitle": "bilingual", "flow": 0 }
+```
+
+规则：首镜 `hook`、末镜 `cta`；`process` 必须有 2–4 个 `steps`，每条 `zh` + `en` 都写（右栏 `EvidencePanel` 逐条淡入，缺 `en` 就是单语空行）；`weight` 1–6；`copy` ≤34 字；**不许编造数字**——所有数字必须来自用户给的材料，没有材料就把 `copy` 写成不带数字的定性句。
+
+`cta` 镜在渲染器里会自动生成 `RecapPanel`（按顺序回顾前面各条过程镜）。所以 process 的 `copy` 要能独立成立——它会被收尾页重新列一遍，观众会截图这一页。
