@@ -16,6 +16,7 @@
     "pack:all": "node packages/aibench/render/scripts/build-storyboard.mjs && pnpm --dir packages/aibench pack --pack-destination ../../dist-packages",
     "publish:npm": "node scripts/publish-npm.mjs",
     "publish:github": "node scripts/publish-github.mjs",
+    "publish:marketplace": "node scripts/marketplace-pr.mjs",
     "probe": "node scripts/probe.mjs",
     "check:timeline": "node scripts/check-timeline.mjs",
     "check:sections": "node scripts/check-sections.mjs",

@@ -212,12 +212,11 @@ Client 半部通过 DSH module loader 加载，注册两个 slot：
 ## 安装
 
 ```bash
-# 本仓库目录直接装进 DSH
+# 当前唯一通道：本仓库目录直接装进 DSH
 plugin_manager action=install_bundle target=<绝对路径>/packages/aibench
-
-# 发布后
-pnpm add dsh-aibench
 ```
+
+npm 上没有发（首创新包只接受 classic automation token）。`scripts/publish-npm.mjs` 已就绪，有 token 随时能发。
 
 ## 内置 Agent
 
@@ -247,12 +246,31 @@ settings.json    面板设置
 
 ## 渲染引擎
 
-`/panel/info` 会报告 `render.available`。它检查 `render/node_modules/@remotion/cli/remotion-cli.js` 是否存在：
+`/panel/info` 会报告 `render.available`。渲染工程（`render/src`、`render/dist`、`render/public`）随插件一起发布，但 **Remotion 本身是普通 npm 依赖**，由包管理器装在你的 `node_modules` 里。
 
-- **true** — 本机已装 Remotion，可以预览帧、导出 MP4
-- **false** — 面板照常可用（浏览模板、管项目、改参数），但预览与导出会提示先装依赖
+`resolveRenderCli()` 会按四种布局依次找 CLI：
 
-在 monorepo 里跑 `pnpm install` 后该项即为 true。从 npm 单独安装本插件不会带上渲染引擎（它体积大、且与本机平台相关），这是有意为之：面板永远能打开，渲染是可选能力。
+```js
+join(RENDER_DIR, 'node_modules', '@remotion', 'cli', 'remotion-cli.js')  // 源码 checkout
+join(PLUGIN_DIR, 'node_modules', '@remotion', 'cli', 'remotion-cli.js')  // npm nested
+join(PKG_ROOT, '@remotion', 'cli', 'remotion-cli.js')                    // pnpm 兄弟布局 ← 关键
+join(PKG_ROOT, 'node_modules', '@remotion', 'cli', 'remotion-cli.js')    // npm flat
+```
+
+第三个候选是 pnpm 的布局：pnpm 不把依赖提升到项目 `node_modules`，而是放在虚拟仓里**与包并列**的位置：
+
+```
+node_modules/.pnpm/dsh-aibench@<hash>/node_modules/
+├── dsh-aibench/     ← 插件本身
+├── @remotion/       ← 它的依赖，兄弟位置
+└── react/
+```
+
+少这一条候选，装得好好的环境里也会报 `render.available: false`、`POST /still` 返回 `503 render_unavailable`。
+
+`render.available: false` 时面板照常可用（浏览模板、管项目、改参数），预览与导出会提示先装依赖。面板永远能打开，渲染是可选能力。
+
+`scripts/check-installed-layout.mjs` 守着这件事：它用真实的 tgz 安装布局验证，**依赖存在但解析不到就判失败**（不静默 SKIP）——那正是这个 bug 的形状。
 
 ## 边界
 

@@ -113,21 +113,68 @@ data/plugins/<owner>__<repo>.yml
 monorepo 的子包要用后缀形式，因为可安装的包是 `packages/aibench` 而不是仓库根：
 
 ```
-data/plugins/<owner>__AiBench--packages-aibench.yml
+data/plugins/kakassq__AiBench--packages-aibench.yml
 ```
 
-内容模板见 `docs/marketplace-entry.yml`（把 `<OWNER>` 换成实际 GitHub 用户名）。
+条目内容由 `scripts/marketplace-pr.mjs` 从 `docs/marketplace-entry.yml` 里 `url:` 之后的部分**原样切出来**——注释是留给本仓库的人看的，不能混进目录里。
+
+### 实测的正确条目形态
+
+这是从两个已合并的真实条目反推的（`0x7A7A6572__dsh-forge-studio--packages-plugin-daily-log.yml` 与 `1010231693__dsh-auto-compaction--packages-dsh-auto-compaction.yml`）：
+
+```yaml
+url: https://github.com/kakassq/AiBench/tree/main/packages/aibench   # monorepo 指向子目录
+name: kakassq/AiBench#aibench                                       # # 后面是子包名，不是路径
+category: ui
+description:
+  en: '...'    # 含 ": " 必须加引号
+  zh: '...'
+icon: https://raw.githubusercontent.com/kakassq/AiBench/main/assets/icon-180.png
+```
+
+两个容易搞错的点：
+
+- **`name` 用 `#subname` 而不是 `#packages/aibench`。** 文件名带路径（`--packages-aibench`），`name` 字段只带包名。两者不是同一个东西。
+- **`icon` 必须是位图。** `contributing.md` 原文是 "GitHub-hosted raster image"，`icon.svg` 不行——市场卡片是 `<img>`，SVG 在某些主题下渲染空白。所以仓里另存了 `assets/icon-180.png`（从 `icon.svg` 栅格化，15 KB）。`raw.githubusercontent.com` 在本机被墙，但我们只是**写**这个 URL 进 YAML，CI 和用户浏览器都不经过这台机器。
+
+### 提 PR 的完整流程（无需 git）
+
+```bash
+# 1. fork（API，一次就够）
+curl -X POST -H "authorization: Bearer $GITHUB_TOKEN" \
+  https://api.github.com/repos/awesome-dsh-plugin/awesome-dsh-plugin/forks
+
+# 2. 建 blob → tree(base_tree=fork的tree) → commit → branch → PR
+GITHUB_TOKEN=ghp_xxx node scripts/marketplace-pr.mjs
+
+# 只看会写什么、不发：
+node scripts/marketplace-pr.mjs --dry-run
+```
+
+脚本会先查上游 `main` 上有没有这个条目——**已经有就退出**，避免重复提交。分支已存在时改用 `PATCH refs`（`force: true`）移动分支，而不是报 422。
+
+**实际结果**：PR [#14967](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14967)，`changed_files: 1`、`additions: 7`、`deletions: 0`、`mergeable: true`。
 
 ### 硬性门槛（官方 contributing.md + CI）
 
 | 门槛 | 我们的状态 |
 |---|---|
 | `package.json` 必须声明 `dsh.bundle` | ✅ 已声明（只声明 `dsh.client` 会被拒） |
-| 仓库创建满 **1 天** | ⏳ 建仓后等一天 |
-| 仓库有 `dsh-plugin` topic | ✅ 脚本自动设 |
-| 有真实可运行代码 | ✅ Host + Client 均有完整实现 |
-| 描述必须属实 | ✅ 没写数字指标 |
-| 项目活跃维护 | ⏳ 靠后续提交维持 |
+| 仓库创建满 **1 天** | ✅ created `2026-11-12T09:33:38Z`，提交时已超过 1 天 |
+| 仓库有 `dsh-plugin` topic | ✅ `publish-github.mjs` 自动设（共 8 个 topics） |
+| 有真实可运行代码 | ✅ Host + Client 完整实现，15 道闸门，两道渲真帧 |
+| 描述必须属实 | ✅ 每条断言都能对上代码（见下） |
+| 项目活跃维护 | ✅ 持续提交 |
+
+**描述属实性自查**（`contributing.md` 说「夸大是让一个本来不错的插件被打回的主要原因」）：
+
+| 条目里写的话 | 代码里对应什么 |
+|---|---|
+| local-first parametric video studio | Remotion CLI 在进程内 spawn，无云端渲染 |
+| Turns one sentence into a storyboard | `POST /director` → `planScriptedStoryboard()` |
+| no AI image or video generation | `index.js` 里零图像/视频 API 调用 |
+| same parameters always produce the same film | `planStoryboard` 无时钟无 RNG；`check-timeline.mjs` 断言 19440 组 |
+| one-sentence agent authoring | `POST /forge/drafts` + Forge 页 |
 
 ### 市场索引源
 
@@ -135,7 +182,7 @@ data/plugins/<owner>__AiBench--packages-aibench.yml
 - `https://awesome-dsh-plugin.com/index.json` — 本机实测 **31.3s**，超过 DSH 的 15s 预算
 - `https://dshmarket.com/index.json` — 同上
 
-## 四个真实踩到的坑
+## 五个真实踩到的坑
 
 ### 坑 1：`node_modules` 下的 TypeScript 不能剥离类型
 
@@ -217,4 +264,20 @@ node <repo>/scripts/check-installed-layout.mjs ./node_modules/dsh-aibench
 - `v0.1.0-s1` — 面板骨架 + 真渲染
 - `v0.1.0-s2` — Agent 包 + SkillBridge + 模板映射
 - `v0.1.0-s3` — 造 Agent（Forge）
-- `v0.1.0-s4` — 商店 / 更新 / 回滚
+- `v0.1.0-s4` — GitHub 上线 + 市场 PR
+
+本机没有 git，打 tag 也要走 API（`POST /repos/:owner/:repo/git/tags` + `POST .../git/refs` with `refs/tags/...`）。截至目前主线是单一 `main` 分支 + 每次推送一个 commit，没有打 tag。
+
+## 发布记录
+
+| 通道 | 状态 | 位置 |
+|---|---|---|
+| GitHub | ✅ 已上线 | https://github.com/kakassq/AiBench（commit `d905b288`，163 文件，8 topics） |
+| DSH 插件市场 | ✅ PR 已提 | https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14967 |
+| npm | ❌ 不发 | 用户决定；首创新包只接受 Classic Automation token |
+
+**GitHub 推送的三个函数级细节**（`scripts/publish-github.mjs`，都是踩过才知道的）：
+
+1. **空仓库不能建 blob。** Git Data API 对着一个没有 commit 的仓库 `POST /git/blobs` 会返回 `409 Git Repository is empty`。必须先用 Contents API `PUT /contents/README.md` 造出第一个 commit，之后所有操作才能落在它上面。
+2. **`GET /repos/:owner/:repo` 返回 200 不代表仓库里有 commit。** 上一次推送成功建仓但推文件失败时，仓库对象存在、`main` 却是空的。唯一可靠的判空方式是 `GET /git/ref/heads/main` 是否 404。
+3. **二进制必须走 blob，文本走 inline `content`。** `git/trees` 的 `content` 字段只接受 UTF-8；PNG 直接放进去会是 `400 Invalid tree info`。所以 `publish-github.mjs` 按扩展名分成两组（`BINARY_EXT` 集合），二进制先 `POST /git/blobs` 拿 sha 再引用。

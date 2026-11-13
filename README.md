@@ -134,16 +134,17 @@ Agent 页下方还有**最近项目**列表，点一条直接回到那个项目�
 ## 安装
 
 ```bash
-# 从本仓库目录直接装进 DSH（开发用）
+# 从本仓库目录直接装进 DSH（当前唯一通道）
 plugin_manager action=install_bundle target=<绝对路径>/packages/aibench
-
-# 从 npm（发布后）
-pnpm add dsh-aibench
 ```
 
 装上后 DSH 侧栏出现「AiBench 创作台」图标，与「对话」并列。
 
 渲染引擎在插件包内部（`packages/aibench/render/`），跟着插件一起发布。单一包，没有跨包版本耦合。
+
+**npm 上没有。** 首创新包只接受 classic automation token（granular token 一律 `403 E_STAGE_REQUIRED`），我们没走这条路。`scripts/publish-npm.mjs` 已经写好，有 token 随时能发 —— 详见 [docs/PUBLISHING.md](docs/PUBLISHING.md)。
+
+**插件市场**：收录 PR 已提（[#14967](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14967)），合并后可在 DSH 市场里搜到。
 
 ### 发布前会跑什么
 
@@ -193,6 +194,7 @@ scripts/pull-stills.mjs     下载项目最近的 stills
 scripts/mp4-frame.mjs       从成片 mp4 里抽帧（验证最终产物而不是 still）
 scripts/publish-npm.mjs      registry API 发布（无需 npm CLI）
 scripts/publish-github.mjs   Git Data API 推仓库（无需 git）
+scripts/marketplace-pr.mjs   向 awesome-dsh-plugin 提收录 PR（无需 git）
 ```
 
 ## 开发
