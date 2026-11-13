@@ -6,6 +6,9 @@
 // the topic's agent rather than whatever template happens to sit first.
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
+// Must precede the Host import: it redirects DATA_DIR to a throwaway sandbox so
+// this gate cannot write into the user's real project list.
+import './sandbox-data.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const mod = await import(pathToFileURL(join(here, '..', 'packages', 'aibench', 'index.js')).href)

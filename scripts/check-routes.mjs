@@ -7,6 +7,9 @@
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
+// Must precede the Host import: it redirects DATA_DIR to a throwaway sandbox so
+// the Forge draft assertions cannot litter the user's real data dir.
+import './sandbox-data.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const mod = await import(pathToFileURL(join(here, '..', 'packages', 'aibench', 'index.js')).href)

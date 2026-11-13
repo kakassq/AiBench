@@ -159,6 +159,8 @@ plugin_manager action=install_bundle target=<绝对路径>/packages/aibench
 - `check-script.mjs` —— 脚本层的时序不变量：脚本决定时长、权重分配后 `sum === totalFrames`、装不下的脚本被截断而非压缩成 6 帧、`sanitizeScript()` 的每条拒绝路径。
 - `check-layout.mjs` —— **渲真帧量密度**。3 画幅 × 4 帧，断言四边安全区、6 条横带有墨、read ink ≥ 0.9%。把「75% 空白」这类主观评语变成会失败的测试。
 
+这几道闸门会 `import` Host 半部并调用真实的写路由（建项目、装 Agent、写草稿），所以每一个都在 Host 之前 `import './sandbox-data.mjs'`，把 `AIBENCH_DATA_DIR` 指向 `.tmp/gate-data/<脚本名>/` 并先清空它。没有这一步，每跑一次闸门就会往你自己的项目列表里塞一条 `forge e2e` —— 这个 bug 真发生过，`scripts/cleanup-gate-projects.mjs` 就是用来收拾它的（只删 `agentId === 'agent-e2e'` 且标题为 `forge e2e` 的项目）。
+
 完整发布步骤见 [docs/PUBLISHING.md](docs/PUBLISHING.md)。
 
 ## 仓库结构
@@ -195,6 +197,8 @@ scripts/mp4-frame.mjs       从成片 mp4 里抽帧（验证最终产物而不�
 scripts/publish-npm.mjs      registry API 发布（无需 npm CLI）
 scripts/publish-github.mjs   Git Data API 推仓库（无需 git）
 scripts/marketplace-pr.mjs   向 awesome-dsh-plugin 提收录 PR（无需 git）
+scripts/sandbox-data.mjs     让闸门跑在一次性数据目录里（Host 必须先于它 import）
+scripts/cleanup-gate-projects.mjs  清掉旧版闸门泄漏到真实目录的 fixture 项目
 ```
 
 ## 开发

@@ -4,9 +4,18 @@
 // they cannot shadow bundled DSH skills.
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
+// Must precede the Host import: it redirects DATA_DIR to a throwaway sandbox so
+// the install/uninstall assertions cannot touch the user's real agent directory.
+import './sandbox-data.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const mod = await import(pathToFileURL(join(here, '..', 'packages', 'aibench', 'index.js')).href)
+
+// `listAgents()` / `listSkills()` read the installed index, which `apply()`
+// normally populates by seeding. This gate runs without DSH, and its data dir is
+// a fresh sandbox, so seed explicitly — otherwise every agent-derived assertion
+// below would pass or fail against an empty list for the wrong reason.
+mod.seedBuiltinAgents()
 
 let failed = 0
 function check(label, condition, detail) {

@@ -13,6 +13,10 @@
 import { createServer } from 'node:http'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
+// Must precede the Host import: it redirects DATA_DIR to a throwaway sandbox.
+// This gate creates a real project and renders a frame from it, so without the
+// sandbox every run left a "forge e2e" project in the user's Studio list.
+import './sandbox-data.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const mod = await import(pathToFileURL(join(here, '..', 'packages', 'aibench', 'index.js')).href)

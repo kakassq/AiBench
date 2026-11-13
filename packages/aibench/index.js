@@ -105,7 +105,20 @@ function resolveProfileDir() {
 }
 
 const PROFILE_DIR = resolveProfileDir()
-const DATA_DIR = join(PROFILE_DIR, 'aibench')
+
+/**
+ * Data root. `AIBENCH_DATA_DIR` exists so the regression gates can run against a
+ * throwaway directory: several of them import this module and then create real
+ * projects, which used to land in the user's own project list and stay there.
+ * Production never sets it.
+ */
+function resolveDataDir() {
+  const override = process.env.AIBENCH_DATA_DIR
+  if (override && override.trim()) return override.trim()
+  return join(PROFILE_DIR, 'aibench')
+}
+
+const DATA_DIR = resolveDataDir()
 const AGENTS_DIR = join(DATA_DIR, 'agents')
 const PROJECTS_DIR = join(DATA_DIR, 'projects')
 const FORGE_DIR = join(DATA_DIR, 'forge')
@@ -431,7 +444,7 @@ function copyDirSync(src, dst, skip) {
  * anything. Idempotent: an agent whose directory already holds a readable
  * manifest is left untouched (the user may have edited it).
  */
-function seedBuiltinAgents() {
+export function seedBuiltinAgents() {
   if (!existsSync(BUILTIN_AGENTS_DIR)) return []
   let names = []
   try {

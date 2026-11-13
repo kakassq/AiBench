@@ -5,6 +5,9 @@
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+// Must precede the Host import: it redirects DATA_DIR to a throwaway sandbox so
+// the install assertion cannot drop a fixture agent into the user's real data dir.
+import './sandbox-data.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const mod = await import(pathToFileURL(join(here, '..', 'packages', 'aibench', 'index.js')).href)

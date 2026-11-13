@@ -77,7 +77,7 @@ D:\AI\Vibe\AiBench\
 ├─ README.md / LICENSE (MIT) / .gitignore
 ├─ docs\
 │  ├─ 00-plan.md                    # 本文件（含实测修正）
-│  ├─ PUBLISHING.md                 # 双通道发布手册 + 三次 token 实测 + 四个坑
+│  ├─ PUBLISHING.md                 # 双通道发布手册 + 三次 token 实测 + 六个坑
 │  └─ marketplace-entry.yml         # 市场 PR 用的条目草案
 ├─ packages\aibench\                # ★ 唯一可分发的 DSH 包（自包含）
 │  ├─ package.json                  # dsh.bundle + dsh.client
@@ -493,12 +493,13 @@ icon: https://cdn.jsdelivr.net/gh/<you>/AiBench@main/packages/aibench/icon.svg
 | 无 git 导致发布困难 | 高 | `publish-github.mjs` 走 Git Data API，实测可推（98 文件 / 7.3 MB） |
 | 与已有 `AIBench` 跑分项目混淆 | 中 | README 首行定调「本地渲染的参数化视频创作面板」，npm 包名 `dsh-aibench` 避开 |
 
-**原表里没有、实际撞上的两个风险：**
+**原表里没有、实际撞上的三个风险：**
 
 | 风险 | 后果 | 对策 |
 |---|---|---|
 | **`pnpm` 的依赖布局和本地符号链接不一样** | 装得好好的环境里渲染引擎「找不到」，`503 render_unavailable`。本地开发**永远发现不了** | `resolveRenderCli()` 试四个候选路径；`check-installed-layout.mjs` 用真实 tgz 安装布局验证 |
 | **画面稀疏但所有测试都绿** | 出片成功、时长正确、字幕正确，但评审判为「75% 空白、不可发布」 | 三个测量脚本 + `check-layout.mjs` 进闸门（见 4.8） |
+| **回归闸门把 fixture 写进用户真实数据目录** | 每跑一次 `forge-e2e.mjs` 就往用户 Studio 里多一条 `forge e2e` 项目，攒到 13 条才发现 | `AIBENCH_DATA_DIR` 可覆盖 + 每个写数据的闸门先 import `scripts/sandbox-data.mjs`；`cleanup-gate-projects.mjs` 收拾历史遗留（见 PUBLISHING 坑 5） |
 
 ---
 
@@ -506,13 +507,14 @@ icon: https://cdn.jsdelivr.net/gh/<you>/AiBench@main/packages/aibench/icon.svg
 
 **已完成（S0–S4 除 npm 发布外全部）：**
 
-- 15 道闸门全绿（`pnpm check`）
+- 15 道闸门全绿（`pnpm check`），且全部跑在一次性沙箱目录里
 - 内含 3 个内置 Agent / 9 个模板 / 5 栏导航 / Forge 造 Agent / SkillBridge / 脚本层 / 版式系统
 - 故宫 30 秒片：900 帧 / 1920×1080 / 30.000s / 3.76 MB，评审「balanced, finished, professional」
-- GitHub `kakassq/AiBench` 已上线（commit `a162b6d9`）
+- GitHub `kakassq/AiBench` 已上线（commit `495dd178`，163 文件）
+- DSH 插件市场收录 PR 已提：[#14967](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/14967)
 
 **待办：**
 
-1. 向 `awesome-dsh-plugin` 提 PR（`docs/marketplace-entry.yml` 已就绪，需仓库创建满 1 天）
+1. 等市场 PR 的 CI 被维护者放行后合并（fork PR 首次贡献需人工批准，`mergeable_state: unstable` 就来自这个 pending）
 2. 旁白配音（v0.3，需本地 TTS 或 DSH 语音能力）
 3. 更多赛道模板（当前 3 个 Agent × 3 模板，扩展点已留）

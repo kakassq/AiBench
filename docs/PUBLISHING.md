@@ -182,7 +182,7 @@ node scripts/marketplace-pr.mjs --dry-run
 - `https://awesome-dsh-plugin.com/index.json` — 本机实测 **31.3s**，超过 DSH 的 15s 预算
 - `https://dshmarket.com/index.json` — 同上
 
-## 五个真实踩到的坑
+## 六个真实踩到的坑
 
 ### 坑 1：`node_modules` 下的 TypeScript 不能剥离类型
 
@@ -239,6 +239,35 @@ SyntaxError: Invalid or unexpected token
 
 同一个坑的另一种形状：用 `Set-Content` 写 `package.json` 会带上 BOM，Remotion 的打包器读它会报
 `SyntaxError: Unexpected token '﻿', "﻿{"name":""... is not valid JSON`。
+
+### 坑 5：闸门把 fixture 写进了用户真实的项目列表
+
+`forge-e2e.mjs`、`check-routes.mjs`、`check-forge.mjs`、`check-skills.mjs`、`check-director.mjs` 都 `import` 了
+`packages/aibench/index.js` 来拿 `apply()` / `validateDraft()` / `scaffoldAgentPackage()`。模块加载时
+`const DATA_DIR = join(PROFILE_DIR, 'aibench')` 就锁定成**用户的真实数据目录**，接下来闸门调
+`POST /projects`、`POST /forge/drafts`、`POST /agents/install` 这些真写路由，数据直接落进用户的 Studio。
+
+症状是 `GET /aibench-api/projects` 返回 85 个项目，其中 13 个标题是 `forge e2e`、`agentId` 是 `agent-e2e`。
+每跑一次闸门就多一条，而且没人会想到去删。
+
+修法是让 `DATA_DIR` 可被环境变量覆盖（`AIBENCH_DATA_DIR`），再给每个会写数据的闸门加一个副作用模块：
+
+```js
+// scripts/sandbox-data.mjs —— 必须在 Host 之前 import
+const SANDBOX = join(ROOT, '.tmp', 'gate-data', scriptName())
+rmSync(SANDBOX, { recursive: true, force: true })
+mkdirSync(SANDBOX, { recursive: true })
+process.env.AIBENCH_DATA_DIR = SANDBOX
+```
+
+**顺序是关键**：`import './sandbox-data.mjs'` 必须排在 `import(...index.js)` 之前，因为 `DATA_DIR` 是模块级常量。
+
+沙箱化立刻暴露了一个隐藏依赖：`check-skills.mjs` 原先靠用户目录里已播种的三个内置 Agent 才通过，
+沙箱里 `listAgents()` 是空的，于是 `listSkills returns the built-in skills — got 0`。
+修法是把 `seedBuiltinAgents()` `export` 出来，让闸门自己播种 —— 这样断言失败的原因才唯一。
+
+历史遗留用 `node scripts/cleanup-gate-projects.mjs --dry-run` 先看，去掉 `--dry-run` 再删；
+它只碰 `agentId === 'agent-e2e'` 且标题为 `forge e2e` 的项目。
 
 ## 发布后验证
 
