@@ -64,6 +64,16 @@ Agent 页下方还有**最近项目**列表，点一条直接回到那个项目�
 - **卸载** — 删包与模板，**已建项目保留**
 - **配置环境** — 每个 Agent 一份 `config.json`，其中的 `env` 会注入渲染子进程，用来放 API key、字体路径等；`skill` 是这个 Agent 的默认技能；重装不丢配置
 
+## 造 Agent（Forge）
+
+导航栏第三项。一句话造一个自己的智能体：选赛道 → 填目标 → 预览三个包文件 → 校验 → 安装。
+
+**脚手架先行，模型只改散文。** `POST /forge/drafts` 用纯函数 `scaffoldAgentPackage()` 生成 `manifest.json` + `templates/main.template.json` + `skills/<name>/SKILL.md`，同一份 spec 两次调用逐字节相同（无时钟、无随机、无模型）。`POST /forge/drafts/:id/refine` 才可选地让模型润色 SKILL.md，**模型挂了不算失败**（`refined:false` + 原因，草稿照旧可用）。`POST /forge/drafts/:id/install` 先 `validateDraft()`，不过就 `409 invalid_draft`。
+
+理由：模型限流或答错时，用户绝不能得到一个「装得上但渲染不出东西」的 Agent。校验器抓的正是那类静默失败——未知 `style.look` 会安静地渲染成默认 look，没有 frontmatter 的技能注册不上。
+
+`forge-e2e.mjs` 守着这条链路：造草稿 → 装 Agent → 用它的模板建项目 → **真渲一帧 PNG**。
+
 ## 技能桥
 
 每个 Agent 包自带 `skills/<dir>/SKILL.md`。Host 启动时扫描并按 frontmatter 注册进 DSH 的 `skills` 服务，于是对话里能直接 `@data-run` / `@reel-run` / `@explainer-run` 调到对应流水线。
