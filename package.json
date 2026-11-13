@@ -32,6 +32,7 @@
     "check:build": "node scripts/check-storyboard-build.mjs",
     "check:installed": "node scripts/check-installed-layout.mjs",
     "check:icon": "node scripts/make-icon-png.mjs",
+    "cleanup:gates": "node scripts/cleanup-gate-projects.mjs",
     "check": "node scripts/check-all.mjs"
   }
 }
