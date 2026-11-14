@@ -63,6 +63,26 @@ Host 侧的 `POST /director` 按顺序尝试 `LLM_ROUTES` 里的模型（`workbu
 
 只重写词、不动画面：`POST /projects/:id/script`（body 可带 `prompt`，缺省回落到 `origin.prompt`）。挑错模板是「片子形状错了」，写错词是「形状对了词错了」，后者不该逼用户重选模板。
 
+### 钉死模板
+
+「同一套版式，换句话再出一版」用 `templateId` 或 `agentId` 表达：
+
+```bash
+curl -X POST http://127.0.0.1:61013/aibench-api/director \
+  -H 'content-type: application/json' \
+  -d '{"prompt":"换个说法重写","templateId":"cli.main"}'
+```
+
+`sanitizeDirectorPlan()` 把 pin 当作**调用方的决定**，优先于模型回显的 `templateId`；`agentId` 只用来收窄候选（取该 agent 的第一个模板）。两种失败都是显式的：
+
+| 情况 | 行为 | 为什么不能更宽容 |
+|---|---|---|
+| `templateId` 不存在 | `404 not_found` | 回落会静默渲成另一支片。用户看到「点了没反应」，比报错难查得多 |
+| `agentId` 下没有模板 | `404 not_found` | 同上 |
+| 只钉 `agentId` | 模板 = 该 agent 的第一个 | pin 的语义是「别换 agent」，不是「别换模板」 |
+
+回显里带回 `director.pinned`（`{templateId, agentId}`），项目的 `origin.pinned` 也留档，所以事后能查清一支片是「模型挑的」还是「人钉的」。
+
 ## 技能桥（SkillBridge）
 
 每个 Agent 包里的 `skills/<dir>/SKILL.md` 会被 Host 扫描，并按 frontmatter 注册进 DSH 的 `skills` 服务：

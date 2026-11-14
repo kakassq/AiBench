@@ -79,6 +79,74 @@ if (a.templateId !== b.templateId) {
   console.log(`PASS  random mode is deterministic -> ${a.templateId}`)
 }
 
+// A pinned template is caller intent, so it must survive a model plan that
+// names something else entirely. This is the "rerun this agent's template with
+// fresh words" flow: a bad pick here renders a different film than the one the
+// user asked to redo, which looks like the app ignoring the click.
+const modelSaysOther = {
+  agentId: 'aibench-explainer',
+  templateId: 'explainer.bayes',
+  title: '模型想选的',
+  brief: '模型想写的',
+  params: { durationSec: 30, aspect: '16:9' },
+}
+const pinnedRun = mod.sanitizeDirectorPlan(
+  modelSaysOther,
+  agents,
+  templates,
+  'template',
+  '随便一句话',
+  { templateId: 'reel.countdown' },
+)
+if (!pinnedRun) {
+  failed += 1
+  console.log('FAIL  pinned template produced no plan')
+} else if (pinnedRun.template.id !== 'reel.countdown' || pinnedRun.plan.templateId !== 'reel.countdown') {
+  failed += 1
+  console.log(`FAIL  pinned template was overridden by the model: ${pinnedRun.plan.templateId}`)
+} else if (pinnedRun.agent.id !== 'aibench-reel') {
+  failed += 1
+  console.log(`FAIL  pinned template did not pull its owning agent: ${pinnedRun.agent.id}`)
+} else {
+  console.log('PASS  pinned template wins over the model plan')
+}
+
+// An unknown pin must fail loudly instead of silently rendering the fallback.
+const badPin = mod.sanitizeDirectorPlan(modelSaysOther, agents, templates, 'template', '随便一句话', {
+  templateId: 'does.not.exist',
+})
+if (badPin !== null) {
+  failed += 1
+  console.log(`FAIL  unknown pin did not fail: rendered ${badPin.plan.templateId}`)
+} else {
+  console.log('PASS  unknown pin fails instead of falling back')
+}
+
+// An agent pin only narrows the catalogue — the model still picks within it.
+const agentPin = mod.sanitizeDirectorPlan(
+  { ...modelSaysOther, templateId: 'data.growth' },
+  agents,
+  templates,
+  'template',
+  '随便一句话',
+  { agentId: 'aibench-data' },
+)
+if (!agentPin || agentPin.agent.id !== 'aibench-data') {
+  failed += 1
+  console.log(`FAIL  agent pin ignored: ${agentPin ? agentPin.agent.id : 'null'}`)
+} else {
+  console.log(`PASS  agent pin keeps the choice inside the agent -> ${agentPin.plan.templateId}`)
+}
+
+// No pin means no behaviour change.
+const unpinned = mod.sanitizeDirectorPlan(modelSaysOther, agents, templates, 'template', '随便一句话', {})
+if (!unpinned || unpinned.plan.templateId !== 'explainer.bayes') {
+  failed += 1
+  console.log(`FAIL  unpinned plan changed: ${unpinned ? unpinned.plan.templateId : 'null'}`)
+} else {
+  console.log('PASS  no pin leaves the model choice alone')
+}
+
 if (failed > 0) {
   console.log(`\n${failed} director check(s) failed`)
   process.exit(1)

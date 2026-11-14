@@ -1452,7 +1452,7 @@ function agentEnvFor(project) {
 //     deterministic local plan. The button never leaves the user with nothing.
 
 /** JSON schema-ish description handed to the model; kept tiny on purpose. */
-function directorPrompt(userPrompt, agents, templates, mode) {
+function directorPrompt(userPrompt, agents, templates, mode, pinned) {
   const catalogue = templates
     .slice(0, 24)
     .map((tpl) => `- ${tpl.id} (${tpl.agentName}): ${tpl.title} — ${tpl.brief ?? ''}`)
@@ -1483,6 +1483,11 @@ function directorPrompt(userPrompt, agents, templates, mode) {
     catalogue,
     '',
     `Selection mode: ${mode === 'random' ? 'pick any template that fits, surprise is welcome' : 'pick the template that best matches the intent'}.`,
+    ...(pinned
+      ? [
+          `Pinned choice: the caller fixed ${pinned.templateId ? `templateId to "${pinned.templateId}"` : `agentId to "${pinned.agentId}"`}. Repeat that id in your reply unchanged. Everything else (title, brief, params) is still yours to decide.`,
+        ]
+      : []),
     'Rules: the brief must be concrete and filmable with typography only (no footage, no photos, no voice-over). Prefer the template default params unless the intent clearly implies otherwise.',
     '',
     'Each agent runs the pipeline below on its own. Follow the one belonging to the agent you pick; do not mix two of them.',
@@ -1697,15 +1702,38 @@ export function localDirectorPlan(userPrompt, agents, templates, mode) {
  * Returns `{ plan, rejected }` — `rejected` lists every field we overrode, which
  * the client surfaces so the user can see the director was corrected.
  */
-function sanitizeDirectorPlan(raw, agents, templates, mode, userPrompt) {
+export function sanitizeDirectorPlan(raw, agents, templates, mode, userPrompt, pinned = {}) {
   const rejected = []
   const fallback = localDirectorPlan(userPrompt, agents, templates, mode)
   const plan = raw && typeof raw === 'object' ? raw : {}
 
-  let template = templates.find((tpl) => tpl.id === plan.templateId) || null
+  // A pinned template is a caller decision, not a model suggestion: the panel
+  // says "re-run this agent's template with new words", and answering with a
+  // different template would silently render the wrong film. The model is told
+  // to repeat it, but only the pin is trusted.
+  const pinnedTemplate = pinned.templateId
+    ? templates.find((tpl) => tpl.id === pinned.templateId) || null
+    : null
+  if (pinned.templateId && !pinnedTemplate) {
+    rejected.push('templateId')
+    return null
+  }
+
+  let template = pinnedTemplate || templates.find((tpl) => tpl.id === plan.templateId) || null
   if (!template) {
     if (plan.templateId) rejected.push('templateId')
     template = templates.find((tpl) => tpl.id === fallback.templateId) || templates[0]
+  }
+
+  // An agent pin only narrows the catalogue: templates belong to one agent, so
+  // the template still wins for `agentId`.
+  if (!pinned.templateId && pinned.agentId) {
+    const pinnedAgent = agents.find((item) => item.id === pinned.agentId) || null
+    if (pinnedAgent && pinnedAgent.id !== template.agentId) {
+      const own = templates.find((tpl) => tpl.agentId === pinnedAgent.id) || null
+      if (own) template = own
+      else rejected.push('agentId')
+    }
   }
 
   let agent = agents.find((item) => item.id === plan.agentId) || null
@@ -2684,6 +2712,13 @@ async function handle(req, res) {
         return
       }
       const mode = body.mode === 'random' ? 'random' : 'template'
+      // Optional pins. `templateId` reruns a known template with fresh words
+      // (the "this agent, new script" flow); `agentId` only narrows the choice
+      // to one agent. Both are caller intent and override the model.
+      const pinned = {
+        templateId: typeof body.templateId === 'string' ? body.templateId.trim() : '',
+        agentId: typeof body.agentId === 'string' ? body.agentId.trim() : '',
+      }
       const agents = listAgents()
       if (agents.length === 0) {
         sendError(res, 409, 'no_agents', 'install an agent before asking for a one-click video')
@@ -2703,7 +2738,7 @@ async function handle(req, res) {
 
       if (llm) {
         const system = 'You are a precise film director for a code-rendered video studio. You answer with JSON only.'
-        const userText = directorPrompt(prompt, agents, templates, mode)
+        const userText = directorPrompt(prompt, agents, templates, mode, pinned)
         const result = await callLlmWithFallback(llm, system, userText)
         attempts = result.attempts
         if (result.ok) {
@@ -2717,7 +2752,12 @@ async function handle(req, res) {
         directorError = 'the llm service is unavailable in this Host runtime'
       }
 
-      const { plan, rejected, template, agent } = sanitizeDirectorPlan(rawPlan, agents, templates, mode, prompt)
+      const sanitized = sanitizeDirectorPlan(rawPlan, agents, templates, mode, prompt, pinned)
+      if (!sanitized) {
+        sendError(res, 404, 'not_found', `unknown template: ${pinned.templateId}`)
+        return
+      }
+      const { plan, rejected, template, agent } = sanitized
 
       // The agent runs its bound skill without being asked. Recording it on the
       // project is what makes the pick auditable later ("why did this render
@@ -2750,6 +2790,7 @@ async function handle(req, res) {
           source,
           attempts,
           rejected,
+          pinned: pinned.templateId || pinned.agentId ? { templateId: pinned.templateId || null, agentId: pinned.agentId || null } : null,
           skill: skillAt || null,
           script: { source: authored.source, error: authored.error, rejected: authored.rejected, attempts: authored.attempts },
         },
@@ -2768,6 +2809,7 @@ async function handle(req, res) {
           attempts,
           rejected,
           mode,
+          pinned: record.origin.pinned,
           skill: bound ? { at: bound.at, name: bound.name, description: bound.description } : null,
           script: {
             source: authored.source,

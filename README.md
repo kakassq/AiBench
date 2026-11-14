@@ -72,6 +72,22 @@ Agent 页下方还有**最近项目**列表，点一条直接回到那个项目�
 
 文案层可以单独重写而不动画面：`POST /projects/:id/script`。挑错模板是「片子形状错了」，写错词是「形状对了词错了」——后者不该逼用户重选模板。
 
+### 钉死模板：换词不换版式
+
+「同一套版式，换句话再出一版」原来表达不出来——`POST /director` 总是自己挑模板。现在它接受 `templateId` 或 `agentId`：
+
+```bash
+curl -X POST http://127.0.0.1:61013/aibench-api/director \
+  -H 'content-type: application/json' \
+  -d '{"prompt":"换个说法重写","templateId":"cli.main"}'
+```
+
+钉死是**调用方的决定，不是模型的建议**（`sanitizeDirectorPlan()` 注释原文 "only the pin is trusted"）：模型被要求原样回显这个 id，但只有 pin 被采信。原因很实际——面板上的语义是「用这支片的模板重写词」，模型换一个模板就会**静默**渲成另一支片。
+
+未知的 id 返回 `404`，**不回落**到模型的选择。回落看起来像「点了没反应」，比报错更难查。
+
+面板里对应 Studio 深视图输入框上方那个开关：`○ 钉死模板 · <templateId>` → `📌 钉死模板 · <templateId>`。它只在已经打开一支片时出现——没有模板时摆一个开关，等于给一个按不动的按钮。默认关：多数请求是「给我做一支关于 X 的片」，默认钉死会悄悄忽略那些明确想要另一种形状的人。
+
 ## 画面密度：把「不好看」变成数字
 
 第一版渲染出来的帧被评审判为 *"approximately 75% of the frame is empty background… unbalanced… sparse and unfinished as a published motion-graphics frame"*。这话对，也**无法复现**——所以它变成了三个测量脚本：

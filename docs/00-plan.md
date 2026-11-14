@@ -246,6 +246,13 @@ cta     记住这一句就够了。  ← 模板硬编码
 
 文案可以单独重写而不动画面：`POST /projects/:id/script`。挑错模板是「形状错了」，写错词是「形状对了词错了」，后者不该逼用户重选模板。
 
+**钉死模板（`templateId` / `agentId`）** 补的是另一半：这次连模板都不许换，只重写词。`sanitizeDirectorPlan(raw, agents, templates, mode, userPrompt, pinned)` 里 `pinnedTemplate` 优先于模型的 `plan.templateId`，注释写明「A pinned template is a caller decision, not a model suggestion」。两条刻意的处置：
+
+- 未知 id → `404`，**不回落**。回落会静默渲成另一支片，用户看到的是「点了没反应」，比报错难查得多。
+- 默认不钉。多数请求是「给我做一支关于 X 的片」，默认钉死会无视那些明确想要另一种形状的人；开关只在已打开一支片时才渲染，否则就是一个按不动的按钮。
+
+不钉死时请求体与钉死功能上线前完全一致（空字符串会被 Host 当作「不钉」，但面板干脆不发这个字段）—— 新增能力不该改变老调用方的请求形状。
+
 ### 4.3 单帧预览（调参体验的核心）
 `POST /still {projectId, frame, paramsOverride}` → 写临时 props JSON → `remotion still AiClip out/frame-<n>.png` → 返回图片 URL。前端拖动播放头即刷新（节流 300ms）。
 

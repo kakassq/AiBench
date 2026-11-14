@@ -101,6 +101,9 @@ window.__ModuleLoader__.load({
         directorNoModel: '这个 Host 没有可用模型，会用本地兜底挑片。',
         directorNeedPrompt: '先写一句你要什么。',
         directorFailed: '成片失败',
+        directorPin: '钉死模板',
+        directorPinHint: '开着时模型只写词，模板按当前这支片来 —— 换句话重跑，版式不变。',
+        directorPinned: '模板已钉死',
         oneClick: '一键成片',
         skillsTitle: '技能',
         skillsHint: '点一下插入到输入框，用 @ 让模型调用',
@@ -301,6 +304,9 @@ window.__ModuleLoader__.load({
         directorNoModel: 'This Host exposes no model, so the local planner picks the template.',
         directorNeedPrompt: 'Write one sentence first.',
         directorFailed: 'Render failed',
+        directorPin: 'Pin template',
+        directorPinHint: 'On: the model only rewrites the words. The template stays — same layout, new script.',
+        directorPinned: 'Template pinned',
         oneClick: 'One-click video',
         skillsTitle: 'Skills',
         skillsHint: 'Click to insert; the model then calls it via @',
@@ -1199,6 +1205,13 @@ window.__ModuleLoader__.load({
                       `${t('directorSkill')} · ${result.director.skill.at}`,
                     )
                   : null,
+                result.director && result.director.pinned && result.director.pinned.templateId
+                  ? h(
+                      'div',
+                      { className: 'abx-job', style: { marginTop: 2 }, title: t('directorPinHint') },
+                      `📌 ${t('directorPinned')} · ${result.director.pinned.templateId}`,
+                    )
+                  : null,
                 result.director && result.director.rejected && result.director.rejected.length > 0
                   ? h(
                       'div',
@@ -1248,6 +1261,27 @@ window.__ModuleLoader__.load({
               ),
             ),
           ),
+          // Only meaningful once a template is on screen: "pin" is what turns
+          // this box from "pick something for me" into "rewrite the words of
+          // the film I am looking at". Offering it with no project would be a
+          // switch that cannot do anything.
+          project && project.templateId
+            ? h(
+                'div',
+                { className: 'abx-field' },
+                h(
+                  'button',
+                  {
+                    className: 'abx-seg-btn',
+                    'data-on': props.directorPin ? 'true' : 'false',
+                    title: t('directorPinHint'),
+                    onClick: () => props.onDirectorPin(!props.directorPin),
+                  },
+                  `${props.directorPin ? '📌' : '○'} ${t('directorPin')} · ${project.templateId}`,
+                ),
+                h('div', { className: 'abx-hint' }, t('directorPinHint')),
+              )
+            : null,
           h('textarea', {
             className: 'abx-textarea',
             placeholder: t('directorPromptPh'),
@@ -1261,7 +1295,12 @@ window.__ModuleLoader__.load({
             h(Btn, {
               primary: true,
               disabled: busy || !String(props.directorPrompt || '').trim(),
-              onClick: () => props.onDirector(String(props.directorPrompt || '').trim(), props.directorMode || 'template'),
+              onClick: () =>
+                props.onDirector(
+                  String(props.directorPrompt || '').trim(),
+                  props.directorMode || 'template',
+                  props.directorPin && project && project.templateId ? project.templateId : '',
+                ),
             }, busy ? t('directorRunning') : `✨ ${t('directorRun')}`),
           ),
           props.directorNoModel ? h('div', { className: 'abx-job' }, t('directorNoModel')) : null,
@@ -2140,7 +2179,7 @@ window.__ModuleLoader__.load({
               h(Btn, {
                 primary: true,
                 disabled: busy || !String(props.prompt || '').trim(),
-                onClick: () => props.onRun(String(props.prompt || '').trim(), props.mode || 'template'),
+                onClick: () => props.onRun(String(props.prompt || '').trim(), props.mode || 'template', ''),
               }, busy ? t('directorRunning') : `✨ ${t('directorRun')}`),
             ),
           },
@@ -2222,6 +2261,11 @@ window.__ModuleLoader__.load({
         const [directorBusy, setDirectorBusy] = React.useState(false)
         const [directorResult, setDirectorResult] = React.useState(null)
         const [directorNote, setDirectorNote] = React.useState('')
+        // Pinning keeps the current studio template fixed and lets the model
+        // rewrite only the words. Default off: "make me a video about X" is the
+        // common case, and pinning by default would silently ignore a request
+        // that clearly wants a different shape.
+        const [directorPin, setDirectorPin] = React.useState(false)
         const [models, setModels] = React.useState(null)
 
         // ---- forge ----
@@ -2569,7 +2613,7 @@ window.__ModuleLoader__.load({
           }
         }, [models])
 
-        const onDirector = React.useCallback(async (prompt, mode) => {
+        const onDirector = React.useCallback(async (prompt, mode, templateId) => {
           if (!prompt) {
             setDirectorNote(t('directorNeedPrompt'))
             return
@@ -2577,7 +2621,12 @@ window.__ModuleLoader__.load({
           setDirectorBusy(true)
           setDirectorResult(null)
           setDirectorNote('')
-          const res = await postJson('/director', { prompt, mode })
+          const body = { prompt, mode }
+          // An empty pin is omitted rather than sent as "": the Host treats a
+          // blank string as "no pin" too, but sending nothing keeps the request
+          // shape identical to the pre-pin API for everything that does not ask.
+          if (templateId) body.templateId = templateId
+          const res = await postJson('/director', body)
           setDirectorBusy(false)
           if (!res.ok) {
             setDirectorResult({ error: `${t('directorFailed')} — ${res.error}` })
@@ -2881,9 +2930,11 @@ window.__ModuleLoader__.load({
                     directorBusy,
                     directorResult,
                     directorNote,
+                    directorPin,
                     directorNoModel: !!(models && models.available && models.available.length === 0),
                     onDirectorPrompt: setDirectorPrompt,
                     onDirectorMode: setDirectorMode,
+                    onDirectorPin: setDirectorPin,
                     onDirector,
                     skills: state.skills || [],
                     onInsertSkill,
